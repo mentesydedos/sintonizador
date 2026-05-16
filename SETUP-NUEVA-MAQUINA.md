@@ -70,32 +70,27 @@ Si no aparece nada: la tarjeta no está bien conectada o el slot no le da PCIe. 
 
 ## 3. Traer el código a `/home/sintonizador/`
 
-El proyecto vive convencionalmente en `/home/sintonizador/` (no en el home del usuario). Crear el directorio y copiar el repo desde la máquina origen.
+El proyecto vive convencionalmente en `/home/sintonizador/` (no en el home del usuario). Crear el directorio y clonar el repo:
 
 ```bash
 sudo mkdir -p /home/sintonizador
 sudo chown $USER:$USER /home/sintonizador
+cd /home/sintonizador
+git clone https://github.com/mentesydedos/sintonizador.git .
 ```
 
-Opciones para traer el código:
+Alternativas si no tenés acceso al GitHub o querés trasladar `channels.conf` y otros locales que no están en el repo:
 
-- **rsync desde la máquina origen** (lo más simple, conserva permisos):
+- **rsync desde la máquina origen** (preserva permisos, copia también `channels.conf` si ya lo tenés):
 
   ```bash
   # Desde la máquina origen:
   rsync -avh --exclude='.venv' --exclude='build' --exclude='archive' \
-        --exclude='logs' --exclude='__pycache__' \
+        --exclude='logs' --exclude='__pycache__' --exclude='.git' \
         /home/sintonizador/ usuario@maquina-destino:/home/sintonizador/
   ```
 
   Excluir `archive/`, `build/`, `.venv/` y `logs/` evita arrastrar gigabytes innecesarios — todo eso se regenera en la nueva máquina.
-
-- **git clone** si tenés el repo en un remoto:
-
-  ```bash
-  cd /home/sintonizador
-  git clone <url-del-repo> .
-  ```
 
 - **Tarball manual** como fallback. Lo mínimo que necesitás es: `src/`, `scripts/`, `pyproject.toml`, `README.md`, `INSTALL.md`, `HISTORICO.md`, este archivo, y opcionalmente `channels.conf` (ver paso 7).
 
