@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sintonizador TBS6704 · Workbench</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #1a1d24; --panel-2: #232831; --border: #2c313c;
+    --text: #e6e7ea; --muted: #8b8f99;
+    --accent: #4ea8de; --ok: #4ade80; --warn: #facc15; --bad: #f87171; --idle: #555a66;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  a { color: var(--accent); }
+
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .subtitle { color: var(--muted); font-size: 12px; margin-left: 10px; }
+  header nav a { color: var(--muted); font-size: 12px; margin-left: 14px; text-decoration: none; }
+  header nav a:hover { color: var(--text); }
+  #conn-status {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--muted);
+  }
+  #conn-status::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--idle);
+  }
+  #conn-status.connected::before { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  #conn-status.disconnected::before { background: var(--bad); }
+
+  main {
+    max-width: 1400px; margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 16px;
+  }
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  section h2 {
+    margin: 0 0 4px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* Generic form bits */
+  .row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .row > label { font-size: 11px; color: var(--muted); align-self: center; min-width: 60px; }
+  select, input[type=text] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    flex: 1; min-width: 120px;
+  }
+  select:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: background-color 0.15s ease;
+    text-decoration: none; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn:hover:not(:disabled) { background: #2c313c; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b1320; }
+  .btn.primary:hover:not(:disabled) { background: #6dbef0; }
+  .btn.danger { color: var(--bad); border-color: rgba(248, 113, 113, 0.4); }
+  .btn.danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.1); }
+  .btn.warn { color: var(--warn); border-color: rgba(250, 204, 21, 0.4); }
+
+  /* Status */
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+  }
+  .status-grid .label { color: var(--muted); }
+  .status-grid .value { color: var(--text); font-weight: 600; }
+  .status-grid .value.bad { color: var(--bad); }
+  .status-grid .value.warn { color: var(--warn); }
+  .status-grid .value.good { color: var(--ok); }
+  .status-grid .value.muted { color: var(--muted); font-weight: normal; font-style: italic; }
+  .lock-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    background: var(--idle); color: var(--text);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .lock-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--idle); }
+  .lock-badge.locked { color: var(--ok); border: 1px solid rgba(74,222,128,0.4); }
+  .lock-badge.locked::before { background: var(--ok); }
+  .lock-badge.partial { color: var(--warn); }
+  .lock-badge.partial::before { background: var(--warn); }
+
+  /* URL row */
+  .url-row { display: flex; gap: 6px; }
+  .url-row input { flex: 1; color: var(--muted); }
+  .url-row input:focus { color: var(--text); outline: 1px solid var(--accent); }
+
+  /* EPG / channel info */
+  table.epg {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  table.epg td { padding: 4px 8px; border-top: 1px solid var(--border); }
+  table.epg td:first-child { color: var(--muted); width: 40%; }
+  table.epg td:last-child { color: var(--text); font-weight: 500; word-break: break-all; }
+  table.epg tr:first-child td { border-top: none; }
+  .epg-note {
+    font-size: 11px; color: var(--muted);
+    margin-top: 8px; line-height: 1.4;
+  }
+
+  /* Video */
+  .video-frame {
+    width: 100%; aspect-ratio: 16/9;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 13px; text-align: center;
+    padding: 20px;
+  }
+  .video-frame .placeholder { max-width: 360px; }
+  .video-frame .placeholder code {
+    background: var(--panel-2); padding: 2px 6px; border-radius: 4px;
+    color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+  }
+
+  /* CC */
+  .cc-status {
+    font-size: 10px; padding: 2px 8px; border-radius: 999px;
+    background: var(--idle); color: var(--text); font-weight: 600;
+  }
+  .cc-status.live { background: var(--ok); color: #0b1320; }
+  .cc-status.connecting { background: var(--warn); color: #0b1320; }
+  .cc-status.error { background: var(--bad); color: #fff; }
+  .cc-text {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px;
+    height: 280px;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; line-height: 1.5;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  .cc-text .cc-time { color: var(--accent); font-size: 10px; }
+  .cc-text .cc-meta { color: var(--muted); font-style: italic; font-size: 10px; }
+  .cc-text .cc-err { color: var(--bad); }
+  .cc-text .cc-empty { color: var(--muted); font-style: italic; }
+
+  /* Messages */
+  .msg {
+    font-size: 12px; padding: 6px 10px; border-radius: 6px;
+    background: rgba(78, 168, 222, 0.08); border: 1px solid rgba(78, 168, 222, 0.3);
+    color: var(--accent);
+  }
+  .msg.err { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.4); color: var(--bad); }
+  .msg.warn { background: rgba(250, 204, 21, 0.08); border-color: rgba(250, 204, 21, 0.4); color: var(--warn); }
+  .msg[hidden] { display: none; }
+
+  /* Scan progress */
+  .scan-progress {
+    font-size: 11px; color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Workbench</h1>
+    <span class="subtitle">Sintonizador TBS6704 · single-tuner inspector</span>
+  </div>
+  <div>
+    <nav><a href="/">← volver al dashboard</a></nav>
+    <span id="conn-status">conectando…</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- LEFT COLUMN -->
+  <section id="controls">
+    <h2>Selección</h2>
+    <div class="row">
+      <label for="tuner-select">Tuner</label>
+      <select id="tuner-select" disabled><option>cargando…</option></select>
+    </div>
+    <div class="row">
+      <label for="channel-select">Canal</label>
+      <select id="channel-select" disabled><option>cargando…</option></select>
+    </div>
+    <div class="row" style="margin-top: 4px;">
+      <button id="tune-btn" class="btn primary" disabled>Sintonizar</button>
+      <button id="release-btn" class="btn danger" disabled>Liberar</button>
+      <button id="scan-btn" class="btn warn">Scan</button>
+    </div>
+    <div id="ctrl-msg" class="msg" hidden></div>
+    <div id="scan-progress" class="scan-progress" hidden>scan: —</div>
+  </section>
+
+  <section id="status">
+    <h2>Estado RF</h2>
+    <div class="status-grid">
+      <span class="label">Lock</span>
+      <span class="value"><span id="st-lock" class="lock-badge">—</span></span>
+      <span class="label">Frecuencia</span>
+      <span class="value" id="st-freq">—</span>
+      <span class="label">Signal</span>
+      <span class="value" id="st-signal">—</span>
+      <span class="label">C/N</span>
+      <span class="value" id="st-cnr">—</span>
+      <span class="label">Delivery</span>
+      <span class="value" id="st-delsys">—</span>
+      <span class="label">Modulación</span>
+      <span class="value" id="st-mod">—</span>
+    </div>
+  </section>
+
+  <section id="url-section">
+    <h2>URL del stream MPEG-TS</h2>
+    <div class="url-row">
+      <input type="text" id="stream-url" readonly value="" />
+      <button class="btn" id="copy-url" title="Copiar URL al clipboard">📋</button>
+      <a class="btn" id="open-vlc" target="_blank" rel="noopener" title="Abrir directo">↗</a>
+    </div>
+    <div class="epg-note">
+      Stream MPEG-TS raw, contenedor con MPEG-2 + AC-3. Browsers no decodifican
+      esos codecs nativamente — abrí la URL con VLC, mpv o ffplay.
+      <strong>Stage 2</strong> va a añadir un monitor de video transcoded a H.264 + AAC HLS
+      reproducible acá abajo.
+    </div>
+  </section>
+
+  <section id="epg-section">
+    <h2>EPG del canal</h2>
+    <table class="epg" id="epg-table"><tbody></tbody></table>
+    <div class="epg-note">
+      Por ahora muestra metadata del scan (nombre, vchannel, service_id, PIDs).
+      <strong>Stage 3</strong> agregará programa actual + siguiente + descripciones desde
+      las tablas PSIP/EIT de ATSC.
+    </div>
+  </section>
+
+  <!-- RIGHT COLUMN -->
+  <section id="video-section">
+    <h2>Monitor de video</h2>
+    <div class="video-frame">
+      <div class="placeholder">
+        <strong>Pendiente Stage 2:</strong> reproductor HLS embebido con transcoding ffmpeg.<br><br>
+        Mientras tanto, abrí el stream en VLC:<br>
+        <code>vlc <span id="vlc-cmd-url">http://…/stream/N.ts</span></code>
+      </div>
+    </div>
+  </section>
+
+  <section id="cc-section">
+    <h2>
+      Closed Captions en vivo
+      <span id="cc-status" class="cc-status" style="margin-left: 8px;">offline</span>
+    </h2>
+    <pre id="cc-text" class="cc-text"><span class="cc-empty">Sintonizá un canal para empezar.</span></pre>
+  </section>
+
+</main>
+
+<script>
+"use strict";
+
+const cardConnStatus = document.getElementById("conn-status");
+const tunerSelect = document.getElementById("tuner-select");
+const channelSelect = document.getElementById("channel-select");
+const tuneBtn = document.getElementById("tune-btn");
+const releaseBtn = document.getElementById("release-btn");
+const scanBtn = document.getElementById("scan-btn");
+const ctrlMsg = document.getElementById("ctrl-msg");
+const scanProgress = document.getElementById("scan-progress");
+const streamUrlEl = document.getElementById("stream-url");
+const copyUrlBtn = document.getElementById("copy-url");
+const openVlcBtn = document.getElementById("open-vlc");
+const vlcCmdUrl = document.getElementById("vlc-cmd-url");
+
+// Status
+const stLock = document.getElementById("st-lock");
+const stFreq = document.getElementById("st-freq");
+const stSignal = document.getElementById("st-signal");
+const stCnr = document.getElementById("st-cnr");
+const stDelsys = document.getElementById("st-delsys");
+const stMod = document.getElementById("st-mod");
+
+const epgTable = document.getElementById("epg-table").querySelector("tbody");
+
+const ccStatusEl = document.getElementById("cc-status");
+const ccText = document.getElementById("cc-text");
+
+// Estado global
+let selectedTuner = 0;
+let selectedChannelId = null;
+let channels = [];
+let archiveState = { reserved_adapters: [] };
+let lastStats = null;
+let statsWs = null;
+let ccWs = null;
+let ccTyping = { queue: [], playing: false };
+
+function setMsg(kind, text) {
+  ctrlMsg.className = "msg " + (kind || "");
+  ctrlMsg.textContent = text;
+  ctrlMsg.hidden = !text;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// --- Carga inicial: catálogo + archive status ---
+
+async function loadInitial() {
+  const [chsResp, archResp] = await Promise.all([
+    fetch("/channels"),
+    fetch("/archive"),
+  ]);
+  const chsData = await chsResp.json();
+  channels = chsData.channels || [];
+  if (archResp.ok) archiveState = await archResp.json();
+  renderTunerSelect();
+  renderChannelSelect();
+}
+
+function renderTunerSelect() {
+  tunerSelect.innerHTML = "";
+  const reserved = new Set((archiveState.reserved_adapters || []).map(Number));
+  for (let i = 0; i < 4; i++) {
+    const opt = document.createElement("option");
+    opt.value = i;
+    const flag = reserved.has(i) ? " · reservado por archiver" : "";
+    opt.textContent = `Tuner ${i}${flag}`;
+    if (reserved.has(i)) opt.dataset.reserved = "1";
+    tunerSelect.appendChild(opt);
+  }
+  tunerSelect.disabled = false;
+  tunerSelect.value = String(selectedTuner);
+  onTunerChange();
+}
+
+function renderChannelSelect() {
+  channelSelect.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = ""; placeholder.disabled = true; placeholder.selected = true;
+  placeholder.textContent = `— elegir canal (${channels.length}) —`;
+  channelSelect.appendChild(placeholder);
+
+  // Agrupar por multiplex
+  let group = null; let lastFreq = null;
+  for (const c of channels) {
+    if (c.frequency_hz !== lastFreq) {
+      if (group) channelSelect.appendChild(group);
+      group = document.createElement("optgroup");
+      const count = channels.filter(x => x.frequency_hz === c.frequency_hz).length;
+      group.label = `${(c.frequency_hz/1e6).toFixed(3)} MHz · ${count} subcan`;
+      lastFreq = c.frequency_hz;
+    }
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = `${c.vchannel || "—"} · ${c.name}`;
+    group.appendChild(opt);
+  }
+  if (group) channelSelect.appendChild(group);
+  channelSelect.disabled = false;
+
+  channelSelect.addEventListener("change", () => {
+    selectedChannelId = parseInt(channelSelect.value, 10);
+    tuneBtn.disabled = isNaN(selectedChannelId) || isReservedTuner();
+    renderEpg();
+  });
+}
+
+function isReservedTuner() {
+  return (archiveState.reserved_adapters || []).map(Number).includes(selectedTuner);
+}
+
+function onTunerChange() {
+  selectedTuner = parseInt(tunerSelect.value, 10) || 0;
+  const reserved = isReservedTuner();
+  tuneBtn.disabled = reserved || !channelSelect.value;
+  releaseBtn.disabled = reserved;
+  scanBtn.disabled = reserved;
+  if (reserved) {
+    setMsg("warn", `Tuner ${selectedTuner} está reservado por el archiver. Detené el archiver para usarlo aquí.`);
+  } else {
+    setMsg("", "");
+  }
+  updateStatusFromLast();
+  updateStreamUrl();
+  ccConnect();
+}
+
+tunerSelect.addEventListener("change", onTunerChange);
+
+// --- Tune / release ---
+
+tuneBtn.addEventListener("click", async () => {
+  if (selectedChannelId === null || isNaN(selectedChannelId)) return;
+  setMsg("", "sintonizando…");
+  tuneBtn.disabled = true;
+  try {
+    const r = await fetch(`/tuners/${selectedTuner}/tune`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel_id: selectedChannelId }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+    setMsg("", `tune → ${data.channel_name} (${(data.frequency_hz/1e6).toFixed(2)} MHz)`);
+    renderEpg();
+  } catch (e) {
+    setMsg("err", `tune error: ${e.message}`);
+  } finally {
+    tuneBtn.disabled = isReservedTuner() || !channelSelect.value;
+  }
+});
+
+releaseBtn.addEventListener("click", async () => {
+  setMsg("", "liberando…");
+  try {
+    const r = await fetch(`/tuners/${selectedTuner}/tune`, { method: "DELETE" });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || `HTTP ${r.status}`);
+    }
+    setMsg("", "tuner liberado");
+  } catch (e) {
+    setMsg("err", `release error: ${e.message}`);
+  }
+});
+
+// --- Scan ---
+
+let scanPoll = null;
+scanBtn.addEventListener("click", async () => {
+  if (isReservedTuner()) return;
+  if (!confirm(`Scan ATSC completo en tuner ${selectedTuner}. Tarda ~3 min y SOBREESCRIBE channels.conf. ¿Continuar?`)) return;
+  scanProgress.hidden = false;
+  scanProgress.textContent = "scan: arrancando…";
+  scanBtn.disabled = true;
+  try {
+    const r = await fetch(`/scan/${selectedTuner}`, { method: "POST" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    pollScan();
+  } catch (e) {
+    scanProgress.textContent = `scan error: ${e.message}`;
+    scanBtn.disabled = isReservedTuner();
+  }
+});
+
+function pollScan() {
+  clearInterval(scanPoll);
+  scanPoll = setInterval(async () => {
+    try {
+      const r = await fetch(`/scan/${selectedTuner}`);
+      const d = await r.json();
+      scanProgress.textContent = `scan: ${d.state}${d.progress ? " · " + d.progress : ""}${d.error ? " · err: " + d.error : ""}`;
+      if (d.state === "done") {
+        clearInterval(scanPoll); scanPoll = null;
+        scanBtn.disabled = isReservedTuner();
+        // El catálogo en memoria del server está stale — hay que recargarlo
+        try { await fetch("/channels/reload", { method: "POST" }); } catch {}
+        await loadInitial();
+        setMsg("", `scan completo: ${d.channels || "?"} canales detectados. channels.conf actualizado.`);
+      } else if (d.state === "error" || d.state === "idle") {
+        clearInterval(scanPoll); scanPoll = null;
+        scanBtn.disabled = isReservedTuner();
+      }
+    } catch (e) {
+      scanProgress.textContent = `poll error: ${e.message}`;
+    }
+  }, 2000);
+}
+
+// --- Stats live (WS /ws/stats) ---
+
+function updateStatusFromLast() {
+  if (!lastStats) return;
+  const t = lastStats.tuners.find(x => x.adapter === selectedTuner);
+  if (!t) return;
+  stLock.className = "lock-badge";
+  if (t.has_lock) { stLock.classList.add("locked"); stLock.textContent = "lock"; }
+  else if (t.has_signal) { stLock.classList.add("partial"); stLock.textContent = "signal"; }
+  else { stLock.textContent = "idle"; }
+  stFreq.textContent = t.frequency_hz ? `${(t.frequency_hz/1e6).toFixed(3)} MHz` : "—";
+  stSignal.textContent = (t.signal_dbm != null) ? `${t.signal_dbm.toFixed(1)} dBm` : "—";
+  if (t.cnr_db != null) {
+    stCnr.textContent = `${t.cnr_db.toFixed(2)} dB`;
+    stCnr.className = "value " + (t.cnr_db >= 15 ? "good" : t.cnr_db >= 8 ? "warn" : "bad");
+  } else if (t.cnr_sentinel) {
+    stCnr.textContent = "— (sentinel)"; stCnr.className = "value muted";
+  } else {
+    stCnr.textContent = "—"; stCnr.className = "value muted";
+  }
+  stDelsys.textContent = t.delivery_system || "—";
+  stMod.textContent = t.modulation || "—";
+  updateStreamUrl();
+}
+
+function connectStatsWs() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  statsWs = new WebSocket(`${proto}://${location.host}/ws/stats`);
+  statsWs.addEventListener("open", () => { cardConnStatus.className = "connected"; cardConnStatus.textContent = "conectado"; });
+  statsWs.addEventListener("close", () => {
+    cardConnStatus.className = "disconnected"; cardConnStatus.textContent = "desconectado · reintentando…";
+    setTimeout(connectStatsWs, 1500);
+  });
+  statsWs.addEventListener("message", (ev) => {
+    try { lastStats = JSON.parse(ev.data); updateStatusFromLast(); } catch {}
+  });
+}
+
+// --- Stream URL ---
+
+function updateStreamUrl() {
+  const url = `${location.protocol}//${location.host}/stream/${selectedTuner}.ts`;
+  streamUrlEl.value = url;
+  openVlcBtn.href = url;
+  vlcCmdUrl.textContent = url;
+}
+
+copyUrlBtn.addEventListener("click", async () => {
+  if (!streamUrlEl.value) return;
+  try {
+    await navigator.clipboard.writeText(streamUrlEl.value);
+    setMsg("", "URL copiada");
+  } catch {
+    streamUrlEl.select(); document.execCommand && document.execCommand("copy");
+    setMsg("", "URL copiada (fallback)");
+  }
+});
+
+// --- EPG (channel info) ---
+
+function renderEpg() {
+  epgTable.innerHTML = "";
+  if (selectedChannelId === null || isNaN(selectedChannelId)) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="2" style="text-align:center; color: var(--muted); font-style: italic;">elegí un canal</td>';
+    epgTable.appendChild(tr);
+    return;
+  }
+  const c = channels.find(x => x.id === selectedChannelId);
+  if (!c) return;
+  const rows = [
+    ["Nombre", c.name],
+    ["Virtual channel", c.vchannel || "—"],
+    ["Service ID", c.service_id != null ? c.service_id : "—"],
+    ["Video PID", c.video_pid != null ? `0x${c.video_pid.toString(16)} (${c.video_pid})` : "—"],
+    ["Audio PID", c.audio_pid != null ? `0x${c.audio_pid.toString(16)} (${c.audio_pid})` : "—"],
+    ["Frecuencia", `${(c.frequency_hz/1e6).toFixed(3)} MHz`],
+    ["Delivery system", c.delivery_system],
+    ["Modulación", c.modulation],
+  ];
+  for (const [k, v] of rows) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${escapeHtml(k)}</td><td>${escapeHtml(String(v))}</td>`;
+    epgTable.appendChild(tr);
+  }
+}
+
+// --- Closed Captions live (WS /ws/cc/{n}) ---
+
+function ccConnect() {
+  if (ccWs) { try { ccWs.close(); } catch {} ccWs = null; }
+  ccText.innerHTML = '<span class="cc-empty">conectando para tuner ' + selectedTuner + '…</span>';
+  ccStatusEl.className = "cc-status connecting";
+  ccStatusEl.textContent = "conectando";
+  ccTyping = { queue: [], playing: false };
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ccWs = new WebSocket(`${proto}://${location.host}/ws/cc/${selectedTuner}`);
+
+  ccWs.addEventListener("message", (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch { return; }
+    handleCcEvent(d);
+  });
+  ccWs.addEventListener("close", () => {
+    if (ccStatusEl.className === "cc-status live") {
+      ccStatusEl.className = "cc-status"; ccStatusEl.textContent = "offline";
+      appendCcMeta("─── desconectado ───");
+    }
+  });
+  ccWs.addEventListener("error", () => { try { ccWs.close(); } catch {} });
+}
+
+function handleCcEvent(d) {
+  if (d.type === "status") {
+    if (d.state === "running") {
+      ccStatusEl.className = "cc-status live"; ccStatusEl.textContent = "live";
+      if (ccText.querySelector(".cc-empty")) ccText.innerHTML = "";
+      appendCcMeta("▸ ccextractor activo · esperando captions…");
+    } else if (d.state === "stopped") {
+      ccStatusEl.className = "cc-status"; ccStatusEl.textContent = "offline";
+      appendCcMeta("▸ ccextractor terminó");
+    }
+  } else if (d.type === "error") {
+    ccStatusEl.className = "cc-status error"; ccStatusEl.textContent = "error";
+    appendCcText(`<span class="cc-err">✗ ${escapeHtml(d.message)}</span>`);
+  } else if (d.type === "cc") {
+    if (ccText.querySelector(".cc-empty")) ccText.innerHTML = "";
+    enqueueCcTypewriter(d);
+  }
+}
+
+function appendCcMeta(text) {
+  ccText.insertAdjacentHTML("beforeend", `<span class="cc-meta">${escapeHtml(text)}</span>\n`);
+  scrollCcBottom();
+}
+function appendCcText(html) {
+  ccText.insertAdjacentHTML("beforeend", html + "\n");
+  scrollCcBottom();
+}
+function scrollCcBottom() {
+  requestAnimationFrame(() => { ccText.scrollTop = ccText.scrollHeight; });
+}
+
+function enqueueCcTypewriter(d) {
+  ccTyping.queue.push({
+    time: d.wall_clock_short || "",
+    text: d.text || "",
+    durationMs: d.duration_ms || 0,
+  });
+  if (!ccTyping.playing) typeNext();
+}
+
+async function typeNext() {
+  if (ccTyping.queue.length === 0) { ccTyping.playing = false; return; }
+  ccTyping.playing = true;
+  const item = ccTyping.queue.shift();
+  const queueLen = ccTyping.queue.length;
+
+  const container = document.createElement("span");
+  container.innerHTML = `<span class="cc-time">[${escapeHtml(item.time)}]</span> `;
+  const textNode = document.createTextNode("");
+  container.appendChild(textNode);
+  ccText.appendChild(container);
+  ccText.appendChild(document.createTextNode("\n"));
+  scrollCcBottom();
+
+  let base = item.durationMs > 200 ? item.durationMs : 2000;
+  if (queueLen >= 2) base *= 0.5;
+  if (queueLen >= 5) base *= 0.4;
+  const chars = Array.from(item.text);
+  const stepMs = Math.max(15, Math.min(120, base / Math.max(chars.length, 1)));
+
+  for (let i = 0; i < chars.length; i++) {
+    textNode.appendData(chars[i]);
+    if (i % 4 === 0) scrollCcBottom();
+    await new Promise(r => setTimeout(r, stepMs));
+  }
+  scrollCcBottom();
+  typeNext();
+}
+
+// --- Bootstrap ---
+
+loadInitial().then(() => {
+  connectStatsWs();
+  ccConnect();
+  renderEpg();
+});
+
+// Refresco periódico del archive state (por si cambia reserva)
+setInterval(async () => {
+  try {
+    const r = await fetch("/archive");
+    if (r.ok) {
+      const newState = await r.json();
+      const oldReserved = new Set((archiveState.reserved_adapters || []).map(Number));
+      const newReserved = new Set((newState.reserved_adapters || []).map(Number));
+      archiveState = newState;
+      if ([...oldReserved].sort().join(",") !== [...newReserved].sort().join(",")) {
+        renderTunerSelect();
+      }
+    }
+  } catch {}
+}, 5000);
+</script>
+</body>
+</html>

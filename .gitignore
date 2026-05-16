@@ -1,0 +1,16 @@
+build/
+logs/
+archive/
+.claude/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+channels.conf
+recordings/
+*.ts
+*.mkv

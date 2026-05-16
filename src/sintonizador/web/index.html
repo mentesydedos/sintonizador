@@ -1,0 +1,1524 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sintonizador TBS6704</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-2: #232831;
+    --border: #2c313c;
+    --text: #e6e7ea;
+    --muted: #8b8f99;
+    --accent: #4ea8de;
+    --ok: #4ade80;
+    --warn: #facc15;
+    --bad: #f87171;
+    --idle: #555a66;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+  header .subtitle {
+    color: var(--muted);
+    font-size: 12px;
+    margin-left: 10px;
+  }
+  #conn-status {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  #conn-status::before {
+    content: "";
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--idle);
+  }
+  #conn-status.connected::before { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  #conn-status.disconnected::before { background: var(--bad); }
+
+  main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .lock-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .lock-badge::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--idle);
+  }
+  .lock-badge.locked { color: var(--ok); border-color: rgba(74, 222, 128, 0.4); }
+  .lock-badge.locked::before { background: var(--ok); box-shadow: 0 0 4px var(--ok); }
+  .lock-badge.signal-only { color: var(--warn); border-color: rgba(250, 204, 21, 0.4); }
+  .lock-badge.signal-only::before { background: var(--warn); }
+
+  .tune {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 15px;
+    color: var(--text);
+  }
+  .tune .freq { font-weight: 600; }
+  .tune .mod { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .tune.no-tune { color: var(--muted); font-style: italic; }
+
+  .metric {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .metric-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .metric-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .metric-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .metric-value.unavailable { color: var(--muted); font-style: italic; }
+
+  .bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.4s ease, background-color 0.3s ease;
+  }
+  .bar-fill.good { background: var(--ok); }
+  .bar-fill.fair { background: var(--warn); }
+  .bar-fill.poor { background: var(--bad); }
+
+  .footer-info {
+    display: flex; justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+  .error {
+    color: var(--bad);
+    font-size: 12px;
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 6px;
+    padding: 6px 10px;
+  }
+
+  .sentinel-warn {
+    font-size: 10px;
+    color: var(--warn);
+    margin-left: 6px;
+  }
+
+  .controls {
+    display: flex; gap: 6px;
+    margin-top: 4px;
+  }
+  .controls select {
+    flex: 1;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    min-width: 0;
+  }
+  .controls select:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover:not(:disabled) { background: #2c313c; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b1320;
+  }
+  .btn.primary:hover:not(:disabled) { background: #6dbef0; border-color: #6dbef0; }
+  .btn.danger { color: var(--bad); border-color: rgba(248, 113, 113, 0.4); }
+  .btn.danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.1); }
+  .release-btn[hidden] { display: none; }
+
+  .stream-row {
+    display: flex; gap: 6px; align-items: stretch;
+  }
+  .stream-row[hidden] { display: none; }
+  .stream-url {
+    flex: 1;
+    min-width: 0;
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .stream-url:focus { color: var(--text); outline: 1px solid var(--accent); outline-offset: 0; }
+  .copy-btn, .open-link {
+    padding: 6px 10px;
+    font-size: 14px;
+    line-height: 1;
+    text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  .subchannels-panel {
+    background: rgba(78, 168, 222, 0.06);
+    border: 1px solid rgba(78, 168, 222, 0.2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .subchannels-panel[hidden] { display: none; }
+  .subchannels-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 6px;
+  }
+  .subchannels-list {
+    margin: 0; padding: 0; list-style: none;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .subchannels-list li {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--text);
+    display: flex; gap: 8px;
+  }
+  .subchannels-list .sc-vch { color: var(--accent); min-width: 38px; }
+  .subchannels-list .sc-prog { color: var(--muted); }
+  .subchannels-hint {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+  .subchannels-hint b { color: var(--text); }
+
+  .info-panel {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .info-panel[hidden] { display: none; }
+  .info-panel > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 8px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    user-select: none;
+  }
+  .info-panel > summary::-webkit-details-marker { display: none; }
+  .info-panel > summary::before {
+    content: "▸";
+    color: var(--accent);
+    margin-right: 8px;
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .info-panel[open] > summary::before { transform: rotate(90deg); }
+  .info-panel > summary > span { flex: 1; }
+  .info-refresh-btn {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+  .info-body {
+    padding: 0 10px 10px 10px;
+    border-top: 1px solid var(--border);
+  }
+  .info-text {
+    margin: 8px 0 0 0;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 400px;
+    overflow: auto;
+  }
+  .info-text.loading { color: var(--muted); font-style: italic; }
+  .info-text.error { color: var(--bad); }
+
+  /* Panel Live CC: mismas reglas visuales que info-panel pero con status badge */
+  .livecc-panel {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .livecc-panel[hidden] { display: none; }
+  .livecc-panel > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 8px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    user-select: none;
+  }
+  .livecc-panel > summary::-webkit-details-marker { display: none; }
+  .livecc-panel > summary::before {
+    content: "▸";
+    color: var(--accent);
+    margin-right: 8px;
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .livecc-panel[open] > summary::before { transform: rotate(90deg); }
+  .livecc-panel > summary > span:first-of-type { flex: 1; }
+  .livecc-status {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--idle);
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: 0.2px;
+  }
+  .livecc-status.connecting { background: var(--warn); color: #0b1320; }
+  .livecc-status.live { background: var(--ok); color: #0b1320; }
+  .livecc-status.error { background: var(--bad); color: #fff; }
+  .livecc-body {
+    padding: 0 10px 10px 10px;
+    border-top: 1px solid var(--border);
+  }
+  .livecc-text {
+    margin: 8px 0 0 0;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    height: 220px;
+    overflow: auto;
+  }
+  .livecc-text .cc-time { color: var(--muted); font-size: 10px; }
+  .livecc-text .cc-line { color: var(--text); }
+  .livecc-text .cc-meta { color: var(--accent); font-style: italic; font-size: 10px; }
+  .livecc-text .cc-err  { color: var(--bad); }
+
+  /* Archive bar */
+  #archive-bar {
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(78, 168, 222, 0.04);
+  }
+  .ab-head {
+    display: flex; align-items: center; gap: 12px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .ab-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .ab-status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--idle);
+    color: var(--text);
+  }
+  .ab-status.running { background: var(--ok); color: #0b1320; }
+  .ab-status.stopped { background: var(--idle); }
+  .ab-status.error { background: var(--bad); color: #fff; }
+  .ab-meta {
+    flex: 1;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .ab-grid {
+    max-width: 1400px;
+    margin: 12px auto 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px;
+  }
+  .ab-grid[hidden] { display: none; }
+  .ab-pipeline {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .ab-pipeline-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .ab-pipeline-slug {
+    font-weight: 600;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .ab-pipeline-meta {
+    color: var(--muted);
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .ab-pipeline-stats {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .ab-pipeline-stats b { color: var(--text); font-weight: 500; }
+  .ab-pipeline.stale { border-color: rgba(250, 204, 21, 0.4); }
+  .ab-pipeline.active { border-color: rgba(74, 222, 128, 0.4); }
+  .ab-pipeline { cursor: pointer; transition: background-color 0.15s ease; }
+  .ab-pipeline:hover { background: var(--panel-2); }
+  .ab-pipeline.expanded {
+    background: var(--panel-2);
+    grid-column: 1 / -1;  /* full width cuando expandida */
+  }
+  .ab-tail {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    height: 200px;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .ab-tail[hidden] { display: none; }
+  .ab-tail .t-time { color: var(--accent); }
+  .ab-tail .t-old { color: var(--muted); }
+  .ab-tail .t-empty { color: var(--muted); font-style: italic; }
+  .ab-tail .t-sep { color: var(--muted); font-style: italic; font-size: 10px; }
+
+  .controls-msg {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-top: -4px;
+  }
+  .controls-msg.info { color: var(--accent); background: rgba(78, 168, 222, 0.08); }
+  .controls-msg.err { color: var(--bad); background: rgba(248, 113, 113, 0.1); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Sintonizador TBS6704</h1>
+    <span class="subtitle">4 tuners ATSC · monitor en vivo</span>
+  </div>
+  <span id="conn-status">conectando…</span>
+</header>
+
+<section id="archive-bar">
+  <div class="ab-head">
+    <span class="ab-title">Archivador 24×7</span>
+    <span class="ab-status">…</span>
+    <span class="ab-meta"></span>
+    <button id="ab-toggle" class="btn">…</button>
+    <button id="ab-refresh" class="btn" title="Refrescar">↻</button>
+  </div>
+  <div class="ab-grid" hidden></div>
+</section>
+
+<main id="cards"></main>
+
+<template id="card-tpl">
+  <article class="card" data-adapter="">
+    <div class="card-head">
+      <span class="card-title">Adapter <span class="adapter-num"></span></span>
+      <span class="lock-badge">idle</span>
+    </div>
+
+    <div class="tune no-tune">(sin sintonizar)</div>
+
+    <div class="metric">
+      <div class="metric-row">
+        <span class="metric-label">Signal</span>
+        <span class="metric-value signal-value unavailable">—</span>
+      </div>
+      <div class="bar"><div class="bar-fill signal-fill"></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-row">
+        <span class="metric-label">C/N</span>
+        <span class="metric-value cnr-value unavailable">—</span>
+      </div>
+      <div class="bar"><div class="bar-fill cnr-fill"></div></div>
+    </div>
+
+    <div class="error" hidden></div>
+
+    <div class="controls">
+      <select class="channel-select" disabled>
+        <option>cargando…</option>
+      </select>
+      <button class="btn primary tune-btn" disabled>Tune</button>
+      <button class="btn danger release-btn" hidden>Release</button>
+    </div>
+    <div class="controls-msg" hidden></div>
+
+    <div class="stream-row" hidden>
+      <input class="stream-url" readonly />
+      <button class="btn copy-btn" title="Copiar URL">📋</button>
+      <a class="btn open-link" target="_blank" rel="noopener" title="Abrir (puede pedir VLC asociado)">↗</a>
+    </div>
+
+    <div class="subchannels-panel" hidden>
+      <div class="subchannels-title">Subcanales en este multiplex</div>
+      <ul class="subchannels-list"></ul>
+      <div class="subchannels-hint">
+        Abrí varias instancias VLC con la misma URL y elegí program distinto en cada una
+        (<b>Reproducción → Programa</b>).
+      </div>
+    </div>
+
+    <details class="info-panel" hidden>
+      <summary>
+        <span>Info técnica + Closed Captions</span>
+        <button class="btn info-refresh-btn" title="Re-capturar">↻</button>
+      </summary>
+      <div class="info-body">
+        <pre class="info-text">Click "Inspeccionar" para capturar 4s y analizar.</pre>
+      </div>
+    </details>
+
+    <details class="livecc-panel" hidden>
+      <summary>
+        <span>Closed Captions en vivo</span>
+        <span class="livecc-status">offline</span>
+      </summary>
+      <div class="livecc-body">
+        <pre class="livecc-text">Abrí este panel para empezar la sesión de Live CC.</pre>
+      </div>
+    </details>
+
+    <div class="footer-info">
+      <span class="lock-detail">—</span>
+      <span class="age">—</span>
+    </div>
+  </article>
+</template>
+
+<script>
+"use strict";
+
+// Configuración visual de las barras
+const SIGNAL_MIN_DBM = -90;    // mapeo lineal -90 → 0%
+const SIGNAL_MAX_DBM = -20;    //              -20 → 100%
+const CNR_MIN_DB = 0;          // 0 → 0%
+const CNR_MAX_DB = 30;         // 30 → 100%
+const CNR_OK_DB = 15;          // ATSC útil
+const CNR_FAIR_DB = 8;
+
+const cardsEl = document.getElementById("cards");
+const tpl = document.getElementById("card-tpl");
+const statusEl = document.getElementById("conn-status");
+const cards = new Map();
+
+// --- Catálogo de canales ---
+let catalogPromise = null;
+let msgTimers = new WeakMap();
+
+function loadCatalog() {
+  if (catalogPromise) return catalogPromise;
+  catalogPromise = fetch("/channels", { headers: { Accept: "application/json" } })
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then((data) => data.channels || []);
+  return catalogPromise;
+}
+
+async function populateChannelSelect(select) {
+  try {
+    const channels = await loadCatalog();
+    select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = `— elegir canal (${channels.length}) —`;
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+
+    // Agrupar por frequency_hz consecutivamente (el catálogo viene ordenado por freq)
+    let currentGroup = null;
+    let currentGroupItems = [];
+    let currentFreq = null;
+    const flushGroup = () => {
+      if (currentGroup && currentGroupItems.length) {
+        currentGroup.label =
+          `${(currentFreq / 1e6).toFixed(3)} MHz` +
+          ` · ${currentGroupItems.length} subcanal${currentGroupItems.length === 1 ? "" : "es"}`;
+        select.appendChild(currentGroup);
+      }
+    };
+
+    for (const c of channels) {
+      if (c.frequency_hz !== currentFreq) {
+        flushGroup();
+        currentFreq = c.frequency_hz;
+        currentGroup = document.createElement("optgroup");
+        currentGroupItems = [];
+      }
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      const vch = c.vchannel ? `${c.vchannel}` : "—";
+      opt.textContent = `${vch} · ${c.name}`;
+      opt.dataset.frequency = c.frequency_hz;
+      currentGroup.appendChild(opt);
+      currentGroupItems.push(c);
+    }
+    flushGroup();
+    select.disabled = false;
+  } catch (e) {
+    select.innerHTML = `<option>ERROR: ${e.message}</option>`;
+  }
+}
+
+// Catálogo agrupado por multiplex — para mostrar bajo el stream URL qué subcanales
+// llegan en el TS actual.
+let multiplexCache = null;
+async function loadMultiplexes() {
+  if (multiplexCache) return multiplexCache;
+  const r = await fetch("/multiplexes", { headers: { Accept: "application/json" } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  multiplexCache = (await r.json()).multiplexes || [];
+  return multiplexCache;
+}
+
+async function findMultiplex(frequency_hz) {
+  const muxes = await loadMultiplexes();
+  return muxes.find((m) => m.frequency_hz === frequency_hz) || null;
+}
+
+// Formatea la respuesta de /tuners/{n}/info como texto multilínea legible.
+function formatInfoReport(data) {
+  const lines = [];
+  const mb = (data.bytes_captured / (1024 * 1024)).toFixed(2);
+  lines.push(`Captura: ${data.captured_seconds}s · ${mb} MB · adapter ${data.adapter}`);
+  lines.push(`Frecuencia: ${(data.frequency_hz / 1e6).toFixed(3)} MHz`);
+  lines.push("");
+
+  const probe = data.ffprobe || {};
+  if (probe.error) {
+    lines.push(`ffprobe error: ${probe.error}`);
+  } else {
+    const programs = probe.programs || [];
+    lines.push(`Programs detectados: ${programs.length}`);
+    for (const p of programs) {
+      lines.push("");
+      lines.push(`▸ Program ${p.program_id}  (pmt_pid=${p.pmt_pid}  pcr_pid=${p.pcr_pid})`);
+      for (const s of (p.streams || [])) {
+        const parts = [];
+        const kind = s.codec_type || "?";
+        parts.push(kind.padEnd(5));
+        parts.push((s.codec_name || "?").padEnd(11));
+        if (kind === "video") {
+          const w = s.width, h = s.height;
+          const fps = s.avg_frame_rate ? evalFps(s.avg_frame_rate) : "?";
+          const br = s.bit_rate ? `${(s.bit_rate / 1e6).toFixed(2)} Mbps` : "";
+          const dar = s.display_aspect_ratio || "";
+          parts.push(`${w}×${h}  ${fps}fps  ${br}  ${dar}`);
+          if (s.profile) parts.push(`(${s.profile})`);
+          if (s.closed_captions) parts.push("✓ CC");
+        } else if (kind === "audio") {
+          parts.push(`${(s.sample_rate || "?")} Hz`);
+          parts.push(s.channel_layout || `${s.channels}ch`);
+          if (s.bit_rate) parts.push(`${Math.round(s.bit_rate / 1000)} kbps`);
+          const lang = s.tags && s.tags.language;
+          if (lang) parts.push(`lang=${lang}`);
+        }
+        lines.push("    " + parts.join("  "));
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push("─── Closed Captions ───");
+  const cc = data.closed_captions || {};
+  if (cc.error) {
+    lines.push(`(${cc.error})`);
+  } else if (!cc.text || cc.text.trim() === "") {
+    lines.push("(no se detectó texto en la captura — el program puede no emitir CC ahora)");
+  } else {
+    lines.push(cc.text.trim());
+  }
+  return lines.join("\n");
+}
+
+function evalFps(fr) {
+  // ffprobe avg_frame_rate viene como "30000/1001"
+  const parts = String(fr).split("/");
+  if (parts.length !== 2) return fr;
+  const n = parseFloat(parts[0]), d = parseFloat(parts[1]);
+  if (!d) return fr;
+  return (n / d).toFixed(2);
+}
+
+function fmtTime(ms) {
+  // ms → "MM:SS"
+  const s = Math.floor(ms / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  return `${mm}:${ss}`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function fillSubchannelsPanel(card, frequency_hz) {
+  const list = card.querySelector(".subchannels-list");
+  list.innerHTML = '<li class="sc-loading">cargando…</li>';
+  try {
+    const mux = await findMultiplex(frequency_hz);
+    list.innerHTML = "";
+    if (!mux || !mux.channels.length) {
+      list.innerHTML = '<li>(sin info de subcanales en el catálogo)</li>';
+      return;
+    }
+    for (const c of mux.channels) {
+      const li = document.createElement("li");
+      const vch = document.createElement("span");
+      vch.className = "sc-vch";
+      vch.textContent = c.vchannel || "—";
+      const name = document.createElement("span");
+      name.className = "sc-name";
+      name.textContent = c.name;
+      const prog = document.createElement("span");
+      prog.className = "sc-prog";
+      prog.textContent = c.service_id != null ? `program ${c.service_id}` : "";
+      li.append(vch, name, prog);
+      list.appendChild(li);
+    }
+  } catch (e) {
+    list.innerHTML = `<li>error: ${e.message}</li>`;
+  }
+}
+
+// --- Controles por card ---
+function wireControls(card, adapter) {
+  const select = card.querySelector(".channel-select");
+  const tuneBtn = card.querySelector(".tune-btn");
+  const releaseBtn = card.querySelector(".release-btn");
+  const msgEl = card.querySelector(".controls-msg");
+  const copyBtn = card.querySelector(".copy-btn");
+  const urlInput = card.querySelector(".stream-url");
+  const infoPanel = card.querySelector(".info-panel");
+  const infoText = card.querySelector(".info-text");
+  const infoRefreshBtn = card.querySelector(".info-refresh-btn");
+
+  let infoLoaded = false;
+  const triggerInfoFetch = async () => {
+    infoText.classList.remove("error");
+    infoText.classList.add("loading");
+    infoText.textContent = "capturando 4 segundos del TS…";
+    try {
+      const r = await fetch(`/tuners/${adapter}/info?seconds=4`);
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      infoText.classList.remove("loading");
+      infoText.textContent = formatInfoReport(data);
+      infoLoaded = true;
+    } catch (e) {
+      infoText.classList.remove("loading");
+      infoText.classList.add("error");
+      infoText.textContent = `error: ${e.message}`;
+    }
+  };
+
+  // Cuando se abre el <details> por primera vez, lanzar el fetch
+  infoPanel.addEventListener("toggle", () => {
+    if (infoPanel.open && !infoLoaded) {
+      triggerInfoFetch();
+    }
+  });
+
+  // Botón refresh — no toglear el details
+  infoRefreshBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerInfoFetch();
+  });
+
+  // --- Panel Live CC ---
+  const livePanel = card.querySelector(".livecc-panel");
+  const liveText = card.querySelector(".livecc-text");
+  const liveStatus = card.querySelector(".livecc-status");
+  let liveWs = null;
+  let liveAutoScroll = true;
+
+  function setLiveStatus(cls, label) {
+    liveStatus.className = "livecc-status " + cls;
+    liveStatus.textContent = label;
+  }
+
+  function appendLive(htmlOrNode) {
+    const wasAtBottom = liveText.scrollTop + liveText.clientHeight >= liveText.scrollHeight - 8;
+    if (typeof htmlOrNode === "string") {
+      liveText.insertAdjacentHTML("beforeend", htmlOrNode);
+    } else {
+      liveText.appendChild(htmlOrNode);
+    }
+    if (wasAtBottom && liveAutoScroll) {
+      liveText.scrollTop = liveText.scrollHeight;
+    }
+  }
+
+  function clearLive(placeholder) {
+    liveText.textContent = placeholder || "";
+  }
+
+  // Si el user hace scroll arriba, pausar el auto-scroll mientras tanto
+  liveText.addEventListener("scroll", () => {
+    const atBottom = liveText.scrollTop + liveText.clientHeight >= liveText.scrollHeight - 8;
+    liveAutoScroll = atBottom;
+  });
+
+  function openLiveCC() {
+    if (liveWs && liveWs.readyState !== WebSocket.CLOSED) return;
+    setLiveStatus("connecting", "conectando");
+    clearLive("");
+    appendLive(`<span class="cc-meta">→ abriendo sesión Live CC para adapter ${adapter}…\n</span>`);
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    liveWs = new WebSocket(`${proto}://${location.host}/ws/cc/${adapter}`);
+
+    liveWs.addEventListener("message", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        handleLiveEvent(data);
+      } catch (e) {
+        appendLive(`<span class="cc-err">malformed event: ${ev.data}\n</span>`);
+      }
+    });
+
+    liveWs.addEventListener("close", () => {
+      setLiveStatus("", "offline");
+      appendLive(`<span class="cc-meta">← sesión cerrada\n</span>`);
+    });
+
+    liveWs.addEventListener("error", () => {
+      setLiveStatus("error", "error");
+    });
+  }
+
+  function closeLiveCC() {
+    if (liveWs && liveWs.readyState !== WebSocket.CLOSED) {
+      liveWs.close();
+    }
+    liveWs = null;
+  }
+
+  function handleLiveEvent(data) {
+    if (data.type === "status") {
+      if (data.state === "running") {
+        setLiveStatus("live", "live");
+        appendLive(`<span class="cc-meta">▸ ccextractor activo · esperando primer CC…\n</span>`);
+      } else if (data.state === "stopped") {
+        setLiveStatus("", "offline");
+        appendLive(`<span class="cc-meta">▸ ccextractor terminó\n</span>`);
+      }
+    } else if (data.type === "error") {
+      setLiveStatus("error", "error");
+      appendLive(`<span class="cc-err">✗ ${escapeHtml(data.message || "(sin detalle)")}\n</span>`);
+    } else if (data.type === "cc") {
+      const t = fmtTime(data.start_ms);
+      const text = String(data.text || "").trim() || "[empty]";
+      appendLive(
+        `<span class="cc-time">[${t}]</span> <span class="cc-line">${escapeHtml(text)}</span>\n`
+      );
+    }
+  }
+
+  livePanel.addEventListener("toggle", () => {
+    if (livePanel.open) openLiveCC();
+    else closeLiveCC();
+  });
+
+  // Si el panel está abierto y el tuner se libera, cerrar la sesión
+  // (lo wireamos vía dataset.muxFreq en updateCard)
+  card.addEventListener("livecc-close-request", closeLiveCC);
+
+  copyBtn.addEventListener("click", async () => {
+    if (!urlInput.value) return;
+    try {
+      await navigator.clipboard.writeText(urlInput.value);
+      setMsg(msgEl, "info", "URL copiada — pegala en VLC (Media → Abrir ubicación de red)");
+    } catch {
+      // Fallback si clipboard API no disponible (http no-secure context)
+      urlInput.select();
+      document.execCommand && document.execCommand("copy");
+      setMsg(msgEl, "info", "URL copiada (selección)");
+    }
+  });
+
+  populateChannelSelect(select).then(() => {
+    // Habilitar tune-btn cuando el user elija un canal real
+    select.addEventListener("change", () => {
+      tuneBtn.disabled = !select.value;
+    });
+  });
+
+  tuneBtn.addEventListener("click", async () => {
+    const id = parseInt(select.value, 10);
+    if (Number.isNaN(id)) return;
+    setMsg(msgEl, "info", "sintonizando…");
+    setBusy(card, true);
+    try {
+      const r = await fetch(`/tuners/${adapter}/tune`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_id: id }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      setMsg(msgEl, "info", `tune → ${data.channel_name} (${(data.frequency_hz / 1e6).toFixed(2)} MHz)`);
+      // El próximo batch del WS va a reflejar el lock automáticamente.
+    } catch (e) {
+      setMsg(msgEl, "err", `error: ${e.message}`);
+    } finally {
+      setBusy(card, false);
+    }
+  });
+
+  releaseBtn.addEventListener("click", async () => {
+    setMsg(msgEl, "info", "liberando…");
+    setBusy(card, true);
+    try {
+      const r = await fetch(`/tuners/${adapter}/tune`, { method: "DELETE" });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      setMsg(msgEl, "info", "tuner liberado");
+    } catch (e) {
+      setMsg(msgEl, "err", `error: ${e.message}`);
+    } finally {
+      setBusy(card, false);
+    }
+  });
+}
+
+function setBusy(card, busy) {
+  card.querySelector(".tune-btn").disabled = busy || !card.querySelector(".channel-select").value;
+  card.querySelector(".release-btn").disabled = busy;
+  card.querySelector(".channel-select").disabled = busy;
+}
+
+function setMsg(el, kind, text) {
+  el.className = "controls-msg " + kind;
+  el.textContent = text;
+  el.hidden = false;
+  const prev = msgTimers.get(el);
+  if (prev) clearTimeout(prev);
+  msgTimers.set(el, setTimeout(() => { el.hidden = true; }, 4000));
+}
+
+// Formato compacto
+const fmt = {
+  freqMHz: (hz) => (hz / 1e6).toFixed(3) + " MHz",
+  dBm: (v) => v.toFixed(1) + " dBm",
+  dB: (v) => v.toFixed(2) + " dB",
+  ageSec: (ts) => {
+    const s = Math.max(0, (Date.now() / 1000) - ts);
+    if (s < 1) return "now";
+    if (s < 60) return s.toFixed(0) + "s ago";
+    return Math.floor(s / 60) + "m ago";
+  },
+};
+
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+
+function pct(v, min, max) {
+  return clamp(((v - min) / (max - min)) * 100, 0, 100);
+}
+
+function signalQuality(dbm) {
+  if (dbm >= -40) return "good";
+  if (dbm >= -70) return "fair";
+  return "poor";
+}
+function cnrQuality(db) {
+  if (db >= CNR_OK_DB) return "good";
+  if (db >= CNR_FAIR_DB) return "fair";
+  return "poor";
+}
+
+function updateCard(card, t) {
+  const lockBadge = card.querySelector(".lock-badge");
+  const tuneEl = card.querySelector(".tune");
+  const sigVal = card.querySelector(".signal-value");
+  const sigFill = card.querySelector(".signal-fill");
+  const cnrVal = card.querySelector(".cnr-value");
+  const cnrFill = card.querySelector(".cnr-fill");
+  const lockDetail = card.querySelector(".lock-detail");
+  const ageEl = card.querySelector(".age");
+  const errEl = card.querySelector(".error");
+
+  // Error
+  if (t.error) {
+    errEl.hidden = false;
+    errEl.textContent = t.error;
+  } else {
+    errEl.hidden = true;
+  }
+
+  // Badge de lock
+  lockBadge.classList.remove("locked", "signal-only");
+  if (t.has_lock) {
+    lockBadge.classList.add("locked");
+    lockBadge.textContent = "lock";
+  } else if (t.has_signal) {
+    lockBadge.classList.add("signal-only");
+    lockBadge.textContent = "signal";
+  } else {
+    lockBadge.textContent = "idle";
+  }
+
+  // Tune info
+  if (t.frequency_hz) {
+    tuneEl.classList.remove("no-tune");
+    tuneEl.innerHTML = `
+      <span class="freq">${fmt.freqMHz(t.frequency_hz)}</span>
+      <span class="mod">${t.delivery_system ?? ""} ${t.modulation ?? ""}</span>
+    `;
+  } else {
+    tuneEl.classList.add("no-tune");
+    tuneEl.textContent = "(sin sintonizar)";
+  }
+
+  // Signal
+  if (typeof t.signal_dbm === "number") {
+    sigVal.classList.remove("unavailable");
+    sigVal.textContent = fmt.dBm(t.signal_dbm);
+    sigFill.style.width = pct(t.signal_dbm, SIGNAL_MIN_DBM, SIGNAL_MAX_DBM) + "%";
+    sigFill.classList.remove("good", "fair", "poor");
+    sigFill.classList.add(signalQuality(t.signal_dbm));
+  } else {
+    sigVal.classList.add("unavailable");
+    sigVal.textContent = "—";
+    sigFill.style.width = "0%";
+  }
+
+  // C/N
+  if (typeof t.cnr_db === "number") {
+    cnrVal.classList.remove("unavailable");
+    cnrVal.textContent = fmt.dB(t.cnr_db);
+    cnrFill.style.width = pct(t.cnr_db, CNR_MIN_DB, CNR_MAX_DB) + "%";
+    cnrFill.classList.remove("good", "fair", "poor");
+    cnrFill.classList.add(cnrQuality(t.cnr_db));
+  } else if (t.cnr_sentinel) {
+    cnrVal.classList.add("unavailable");
+    cnrVal.innerHTML = '— <span class="sentinel-warn">(sentinel)</span>';
+    cnrFill.style.width = "0%";
+  } else {
+    cnrVal.classList.add("unavailable");
+    cnrVal.textContent = "—";
+    cnrFill.style.width = "0%";
+  }
+
+  // Mostrar Release + stream URL + paneles solo si está tuneado
+  const releaseBtn = card.querySelector(".release-btn");
+  const streamRow = card.querySelector(".stream-row");
+  const subPanel = card.querySelector(".subchannels-panel");
+  const infoPanel = card.querySelector(".info-panel");
+  const livePanel = card.querySelector(".livecc-panel");
+  const tuned = !!t.frequency_hz;
+  releaseBtn.hidden = !tuned;
+  streamRow.hidden = !tuned;
+  subPanel.hidden = !tuned;
+  infoPanel.hidden = !tuned;
+  livePanel.hidden = !tuned;
+  // Si pierde el tune, forzar cierre del WS de Live CC y colapsar el details
+  if (!tuned && livePanel.open) {
+    livePanel.open = false;
+    card.dispatchEvent(new Event("livecc-close-request"));
+  }
+  if (tuned) {
+    const url = `${location.protocol}//${location.host}/stream/${t.adapter}.ts`;
+    const urlInput = card.querySelector(".stream-url");
+    if (urlInput.value !== url) urlInput.value = url;
+    card.querySelector(".open-link").href = url;
+
+    // Poblar el panel de subcanales si cambió la frecuencia
+    if (card.dataset.muxFreq !== String(t.frequency_hz)) {
+      card.dataset.muxFreq = String(t.frequency_hz);
+      fillSubchannelsPanel(card, t.frequency_hz);
+    }
+  } else {
+    delete card.dataset.muxFreq;
+  }
+
+  // Detalle de lock + edad
+  lockDetail.textContent = `raw=0x${t.lock_raw.toString(16).padStart(2, "0")}`;
+  ageEl.textContent = fmt.ageSec(t.timestamp);
+}
+
+// Re-render de "age" cada segundo aunque no llegue update nuevo
+setInterval(() => {
+  for (const [_, card] of cards) {
+    const ts = card.dataset.lastTs;
+    if (ts) card.querySelector(".age").textContent = fmt.ageSec(parseFloat(ts));
+  }
+}, 1000);
+
+// WebSocket + reconnect con backoff exponencial
+let ws = null;
+let backoff = 1000;
+const MAX_BACKOFF = 30000;
+
+function setStatus(state, text) {
+  statusEl.className = state;
+  statusEl.textContent = text;
+}
+
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws/stats`;
+  setStatus("", "conectando…");
+  ws = new WebSocket(url);
+
+  ws.addEventListener("open", () => {
+    backoff = 1000;
+    setStatus("connected", "conectado");
+  });
+
+  ws.addEventListener("message", (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg.type !== "stats" || !Array.isArray(msg.tuners)) return;
+      for (const t of msg.tuners) {
+        const card = cards.get(t.adapter);
+        if (!card) continue;
+        updateCard(card, t);
+        card.dataset.lastTs = t.timestamp;
+      }
+    } catch (e) {
+      console.error("bad ws message", e);
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    setStatus("disconnected", `desconectado · reintento en ${(backoff / 1000).toFixed(0)}s`);
+    setTimeout(connect, backoff);
+    backoff = Math.min(backoff * 2, MAX_BACKOFF);
+  });
+
+  ws.addEventListener("error", () => {
+    // close va a disparar igual; el handler de close hace el retry
+    try { ws.close(); } catch {}
+  });
+}
+
+// --- Bootstrap (al final: necesita todo lo anterior ya definido) ---
+function initCards() {
+  for (let i = 0; i < 4; i++) {
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    node.dataset.adapter = i;
+    node.querySelector(".adapter-num").textContent = i;
+    cardsEl.appendChild(node);
+    cards.set(i, node);
+    wireControls(node, i);
+  }
+}
+
+initCards();
+connect();
+
+// --- Archivador 24x7 ---
+const abStatus = document.querySelector(".ab-status");
+const abMeta = document.querySelector(".ab-meta");
+const abToggle = document.getElementById("ab-toggle");
+const abRefresh = document.getElementById("ab-refresh");
+const abGrid = document.querySelector(".ab-grid");
+
+async function fetchArchiveStatus() {
+  try {
+    const r = await fetch("/archive");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } catch (e) {
+    return { running: false, error: e.message };
+  }
+}
+
+function renderArchive(data) {
+  if (data.error) {
+    abStatus.className = "ab-status error";
+    abStatus.textContent = "error";
+    abMeta.textContent = data.error;
+    abToggle.textContent = "Reintentar";
+    abToggle.dataset.action = "start";
+    abGrid.hidden = true;
+    return;
+  }
+  if (data.running) {
+    abStatus.className = "ab-status running";
+    abStatus.textContent = "running";
+    const ut = Math.floor(data.uptime_seconds || 0);
+    const totalBlocks = (data.pipelines || []).reduce((a, p) => a + (p.blocks_written || 0), 0);
+    abMeta.textContent =
+      `${data.pipelines.length} pipelines · ` +
+      `uptime ${fmtUptime(ut)} · ` +
+      `${totalBlocks} bloques CC totales · ` +
+      `root=${data.archive_root} · rotación ${data.rotation_minutes}m`;
+    abToggle.textContent = "Stop";
+    abToggle.dataset.action = "stop";
+    abToggle.className = "btn danger";
+    renderPipelines(data.pipelines || []);
+    abGrid.hidden = false;
+  } else {
+    abStatus.className = "ab-status stopped";
+    abStatus.textContent = "stopped";
+    abMeta.textContent = `${data.total_targets || 0} targets configurados · root=${data.archive_root || "?"}`;
+    abToggle.textContent = "Start";
+    abToggle.dataset.action = "start";
+    abToggle.className = "btn primary";
+    abGrid.hidden = true;
+  }
+}
+
+function fmtUptime(s) {
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m " + (s % 60) + "s";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h + "h " + m + "m";
+}
+
+// Estado por slug.
+const abLive = new Map();   // slug -> {ws}
+const abCards = new Map();  // slug -> {node, statsEl, tailEl}  — referencias estables
+
+function renderPipelines(pipelines) {
+  const seen = new Set();
+
+  for (const p of pipelines) {
+    seen.add(p.slug);
+    let entry = abCards.get(p.slug);
+
+    if (!entry) {
+      // Crear card nuevo — solo una vez
+      const node = document.createElement("div");
+      node.className = "ab-pipeline";
+      node.dataset.slug = p.slug;
+      node.innerHTML = `
+        <div class="ab-pipeline-head">
+          <span class="ab-pipeline-slug"></span>
+          <span class="ab-pipeline-meta"></span>
+        </div>
+        <div class="ab-pipeline-stats"></div>
+        <div class="ab-tail" hidden></div>
+      `;
+      const slugEl = node.querySelector(".ab-pipeline-slug");
+      const metaEl = node.querySelector(".ab-pipeline-meta");
+      const statsEl = node.querySelector(".ab-pipeline-stats");
+      const tailEl = node.querySelector(".ab-tail");
+      slugEl.textContent = p.slug;
+      metaEl.textContent = `ad${p.adapter} · prog ${p.program_id} · ${p.frequency_mhz} MHz`;
+
+      // Click solo cuando NO sea dentro del tail (sino se cierra al
+      // seleccionar texto) — y solo cuando NO sea click-arrastre largo.
+      node.addEventListener("click", (e) => {
+        if (e.target.closest(".ab-tail")) return;
+        togglePipelineLive(node, p.slug);
+      });
+
+      abGrid.appendChild(node);
+      entry = { node, statsEl, tailEl };
+      abCards.set(p.slug, entry);
+    }
+
+    // Update stats in-place — NO destruye estructura, refs siguen válidas
+    const ageTxt = p.last_event_age_s == null
+      ? "—"
+      : (p.last_event_age_s < 60 ? `${p.last_event_age_s}s ago` : `${Math.floor(p.last_event_age_s/60)}m ago`);
+    entry.statsEl.innerHTML = `
+      <span>bloques CC:</span> <b>${p.blocks_written}</b>
+      <span>último:</span> <b>${ageTxt}</b>
+      <span>restarts:</span> <b>${p.ccextractor_restarts}</b>
+      <span>TS in:</span> <b>${(p.bytes_processed/1e6).toFixed(1)} MB</b>
+    `;
+
+    // Update clases active/stale sin pisar 'expanded'
+    entry.node.classList.toggle("active",
+      p.last_event_age_s != null && p.last_event_age_s < 60);
+    entry.node.classList.toggle("stale",
+      (p.last_event_age_s == null || p.last_event_age_s >= 60) && p.blocks_written > 0);
+  }
+
+  // Remove cards de pipelines que ya no están (cuando se para el archiver)
+  for (const slug of [...abCards.keys()]) {
+    if (!seen.has(slug)) {
+      const e = abCards.get(slug);
+      closeLiveArchive(slug);
+      e.node.remove();
+      abCards.delete(slug);
+    }
+  }
+}
+
+function togglePipelineLive(node, slug) {
+  const tail = node.querySelector(".ab-tail");
+  if (node.classList.contains("expanded")) {
+    // Colapsar
+    node.classList.remove("expanded");
+    tail.hidden = true;
+    closeLiveArchive(slug);
+  } else {
+    node.classList.add("expanded");
+    tail.hidden = false;
+    tail.innerHTML = '<span class="t-empty">conectando…</span>';
+    openLiveArchive(slug, tail);
+  }
+}
+
+function openLiveArchive(slug, tailEl) {
+  closeLiveArchive(slug);
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws/archive/${encodeURIComponent(slug)}`);
+  // ccQueue/ccTyping: efecto typewriter — cada caption se anima letra por
+  // letra a lo largo de su `duration_ms`. Si llegan varios captions juntos,
+  // aceleramos para no quedar atrás (queueLen >= 2 → 2× rápido, >= 5 → 4×).
+  const state = { ws, hasContent: false, ccQueue: [], ccTyping: false };
+  abLive.set(slug, state);
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      tailEl.scrollTop = tailEl.scrollHeight;
+    });
+  };
+
+  // --- Typewriter ---
+  const typeNextCaption = async () => {
+    if (state.ccQueue.length === 0) { state.ccTyping = false; return; }
+    state.ccTyping = true;
+
+    const item = state.ccQueue.shift();
+    const queueLen = state.ccQueue.length;
+
+    // Crear el elemento del caption: [timestamp] + nodo de texto vacío
+    const container = document.createElement("span");
+    container.innerHTML = `<span class="t-time">[${escapeHtml(item.timeStr)}]</span> `;
+    const textNode = document.createTextNode("");
+    container.appendChild(textNode);
+    tailEl.appendChild(container);
+    tailEl.appendChild(document.createTextNode("\n"));
+    scrollToBottom();
+
+    // Cadencia adaptativa: usar la duración real del bloque SRT como base.
+    // Si la cola creció, acelerar para alcanzar el live.
+    let base = item.durationMs && item.durationMs > 200 ? item.durationMs : 2000;
+    if (queueLen >= 2) base *= 0.5;
+    if (queueLen >= 5) base *= 0.4;
+    const chars = Array.from(item.text);  // Array.from respeta surrogates UTF
+    const stepMs = Math.max(15, Math.min(120, base / Math.max(chars.length, 1)));
+
+    for (let i = 0; i < chars.length; i++) {
+      textNode.appendData(chars[i]);
+      if (i % 4 === 0) scrollToBottom();  // scroll cada 4 chars, suficiente
+      await new Promise((r) => setTimeout(r, stepMs));
+    }
+    scrollToBottom();
+    typeNextCaption();
+  };
+
+  ws.addEventListener("message", (ev) => {
+    let data;
+    try { data = JSON.parse(ev.data); } catch { return; }
+    const t = data.type;
+    if (t === "tail") {
+      // Histórico: instantáneo, no anima
+      if (!state.hasContent) { tailEl.innerHTML = ""; state.hasContent = true; }
+      appendTailLine(tailEl, data.line, true);
+      scrollToBottom();
+    } else if (t === "tail_end") {
+      if (!state.hasContent) {
+        tailEl.innerHTML = '<span class="t-empty">(período actual aún sin CC — esperando captions en vivo…)</span>\n';
+        state.hasContent = true;
+      }
+      appendTail(tailEl, `<span class="t-sep">─── live ───</span>\n`);
+      scrollToBottom();
+    } else if (t === "cc") {
+      // Live: encolar para typewriter
+      if (!state.hasContent) { tailEl.innerHTML = ""; state.hasContent = true; }
+      state.ccQueue.push({
+        timeStr: data.wall_clock_short || "",
+        text: data.text || "",
+        durationMs: data.duration_ms || 0,
+      });
+      if (!state.ccTyping) typeNextCaption();
+    } else if (t === "error") {
+      appendTail(tailEl, `<span class="cc-err">error: ${escapeHtml(data.message)}</span>\n`);
+      scrollToBottom();
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    if (abLive.get(slug) === state) {
+      appendTail(tailEl, `<span class="t-sep">─── desconectado ───</span>\n`);
+      scrollToBottom();
+    }
+  });
+
+  ws.addEventListener("error", () => {
+    try { ws.close(); } catch {}
+  });
+}
+
+function closeLiveArchive(slug) {
+  const state = abLive.get(slug);
+  if (state) {
+    try { state.ws.close(); } catch {}
+    abLive.delete(slug);
+  }
+}
+
+function appendTail(tailEl, htmlFragment) {
+  tailEl.insertAdjacentHTML("beforeend", htmlFragment);
+}
+
+function appendTailLine(tailEl, line, isOld) {
+  // Las líneas del tail son del .txt: pueden ser "# header" o "[HH:MM:SS] texto"
+  // Pintamos con clase t-old para que se note visualmente que es histórico.
+  const cls = isOld ? "t-old" : "";
+  appendTail(tailEl, `<span class="${cls}">${escapeHtml(line)}</span>\n`);
+}
+
+abToggle.addEventListener("click", async () => {
+  abToggle.disabled = true;
+  const action = abToggle.dataset.action;
+  try {
+    const r = await fetch("/archive", { method: action === "start" ? "POST" : "DELETE" });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      throw new Error(data.detail || `HTTP ${r.status}`);
+    }
+    setTimeout(() => fetchAndRender(), 500);
+  } catch (e) {
+    abMeta.textContent = `error: ${e.message}`;
+    abStatus.className = "ab-status error";
+  } finally {
+    abToggle.disabled = false;
+  }
+});
+
+abRefresh.addEventListener("click", fetchAndRender);
+
+async function fetchAndRender() {
+  renderArchive(await fetchArchiveStatus());
+}
+
+fetchAndRender();
+setInterval(fetchAndRender, 3000);
+</script>
+
+</body>
+</html>
