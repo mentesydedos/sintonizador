@@ -502,6 +502,54 @@
   }
   .controls-msg.info { color: var(--accent); background: rgba(78, 168, 222, 0.08); }
   .controls-msg.err { color: var(--bad); background: rgba(248, 113, 113, 0.1); }
+
+  /* ===== Monitoreo de subcanales ===== */
+  #monitor { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .mon-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .mon-title { font-weight: 600; font-size: 15px; }
+  .mon-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mon-hint { color: var(--muted); font-size: 12px; flex: 1; min-width: 120px; }
+  .mon-hint.over { color: var(--bad); }
+  .mon-selector {
+    margin-top: 12px; padding: 12px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; max-height: 320px; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px;
+  }
+  .mux-group { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+  .mux-group h4 { margin: 0 0 6px; font-size: 12px; color: var(--accent); font-weight: 600; }
+  .mux-group label { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 13px; cursor: pointer; }
+  .mux-group label .sc-vch { color: var(--muted); min-width: 34px; font-variant-numeric: tabular-nums; }
+  .mon-grid {
+    margin-top: 12px; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px;
+  }
+  .subrow { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .subrow-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .subrow-vch { font-weight: 700; color: var(--accent); }
+  .subrow-name { font-weight: 600; }
+  .subrow-mux { margin-left: auto; color: var(--muted); font-size: 11px; }
+  .subrow-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+  .chip {
+    font-size: 11px; padding: 2px 7px; border-radius: 10px;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  .chip.on { background: rgba(74,222,128,0.15); border-color: rgba(74,222,128,0.4); color: var(--ok); }
+  .chip.off { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.35); color: var(--bad); }
+  .chip.cc-yes { background: rgba(78,168,222,0.15); border-color: rgba(78,168,222,0.4); color: var(--accent); }
+  .subrow-video { position: relative; background: #000; border-radius: 6px; overflow: hidden; aspect-ratio: 16/9; margin-bottom: 8px; }
+  .subrow-vid { width: 100%; height: 100%; display: block; background: #000; }
+  .vid-btn {
+    position: absolute; inset: 0; margin: auto; width: fit-content; height: fit-content;
+    z-index: 2;
+  }
+  .subrow-video.playing .vid-btn { position: absolute; inset: auto 6px 6px auto; margin: 0; opacity: .85; }
+  .subrow-cc-status { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .subrow-cc-text {
+    margin: 0; font-size: 12px; line-height: 1.45; max-height: 110px; overflow-y: auto;
+    white-space: pre-wrap; word-break: break-word; color: var(--text);
+    background: var(--panel-2); border-radius: 4px; padding: 6px; min-height: 28px;
+  }
+  .subrow-cc-text .cc-time { color: var(--muted); font-size: 10px; margin-right: 4px; }
 </style>
 </head>
 <body>
@@ -509,7 +557,7 @@
 <header>
   <div>
     <h1>Sintonizador TBS6704</h1>
-    <span class="subtitle">4 tuners ATSC · monitor en vivo</span>
+    <span class="subtitle"><span id="tuner-count">…</span> tuners ATSC · monitor en vivo</span>
   </div>
   <span id="conn-status">conectando…</span>
 </header>
@@ -524,6 +572,41 @@
   </div>
   <div class="ab-grid" hidden></div>
 </section>
+
+<section id="monitor">
+  <div class="mon-head">
+    <span class="mon-title">Monitoreo de subcanales</span>
+    <span class="mon-count">0 / 16</span>
+    <span class="mon-hint"></span>
+    <button id="mon-toggle-sel" class="btn">Seleccionar…</button>
+    <button id="mon-apply" class="btn primary" disabled>Monitorear</button>
+    <button id="mon-stop" class="btn danger" hidden>Detener</button>
+  </div>
+  <div id="mon-selector" class="mon-selector" hidden></div>
+  <div id="mon-grid" class="mon-grid"></div>
+</section>
+
+<template id="subrow-tpl">
+  <article class="subrow" data-channel-id="" data-slug="">
+    <div class="subrow-head">
+      <span class="subrow-vch"></span>
+      <span class="subrow-name"></span>
+      <span class="subrow-mux"></span>
+    </div>
+    <div class="subrow-chips">
+      <span class="chip chip-onair">señal…</span>
+      <span class="chip chip-codec">codec…</span>
+      <span class="chip chip-audio">audio…</span>
+      <span class="chip chip-cc">CC?</span>
+    </div>
+    <div class="subrow-video">
+      <video class="subrow-vid" controls muted playsinline></video>
+      <button class="btn vid-btn">▶ Video</button>
+    </div>
+    <div class="subrow-cc-status">CC: —</div>
+    <pre class="subrow-cc-text"></pre>
+  </article>
+</template>
 
 <main id="cards"></main>
 
@@ -605,6 +688,7 @@
   </article>
 </template>
 
+<script src="/hls.min.js"></script>
 <script>
 "use strict";
 
@@ -744,9 +828,9 @@ function formatInfoReport(data) {
   lines.push("─── Closed Captions ───");
   const cc = data.closed_captions || {};
   if (cc.error) {
-    lines.push(`(${cc.error})`);
-  } else if (!cc.text || cc.text.trim() === "") {
-    lines.push("(no se detectó texto en la captura — el program puede no emitir CC ahora)");
+    lines.push(`⚠ ${cc.error}`);
+  } else if (cc.no_captions || !cc.text || cc.text.trim() === "") {
+    lines.push("(sin CC en esta captura — el canal no emite captions en este momento)");
   } else {
     lines.push(cc.text.trim());
   }
@@ -1219,8 +1303,18 @@ function connect() {
 }
 
 // --- Bootstrap (al final: necesita todo lo anterior ya definido) ---
-function initCards() {
-  for (let i = 0; i < 4; i++) {
+async function initCards() {
+  let adapters = [0, 1, 2, 3];
+  try {
+    const r = await fetch("/adapters");
+    if (r.ok) {
+      const d = await r.json();
+      if (Array.isArray(d.adapters) && d.adapters.length) adapters = d.adapters;
+    }
+  } catch (e) {
+    console.warn("no se pudo leer /adapters, usando 0..3", e);
+  }
+  for (const i of adapters) {
     const node = tpl.content.firstElementChild.cloneNode(true);
     node.dataset.adapter = i;
     node.querySelector(".adapter-num").textContent = i;
@@ -1228,10 +1322,11 @@ function initCards() {
     cards.set(i, node);
     wireControls(node, i);
   }
+  const tc = document.getElementById("tuner-count");
+  if (tc) tc.textContent = adapters.length;
 }
 
-initCards();
-connect();
+initCards().then(connect);
 
 // --- Archivador 24x7 ---
 const abStatus = document.querySelector(".ab-status");
@@ -1518,6 +1613,284 @@ async function fetchAndRender() {
 
 fetchAndRender();
 setInterval(fetchAndRender, 3000);
+
+// ===== Monitoreo de subcanales (selección → estado + CC + video) =====
+(function () {
+  const MAX_SUB = 16;
+  const selEl = document.getElementById("mon-selector");
+  const gridEl = document.getElementById("mon-grid");
+  const countEl = document.querySelector(".mon-count");
+  const hintEl = document.querySelector(".mon-hint");
+  const applyBtn = document.getElementById("mon-apply");
+  const stopBtn = document.getElementById("mon-stop");
+  const toggleSelBtn = document.getElementById("mon-toggle-sel");
+  const subrowTpl = document.getElementById("subrow-tpl");
+
+  let catalog = [];          // canales (de /channels)
+  let tunersTotal = 4;
+  const rows = new Map();    // channel_id -> {el, ws, hls, statusTimer, slug}
+
+  toggleSelBtn.addEventListener("click", () => {
+    selEl.hidden = !selEl.hidden;
+    if (!selEl.hidden && !selEl.dataset.loaded) loadSelector();
+  });
+  applyBtn.addEventListener("click", applyMonitor);
+  stopBtn.addEventListener("click", stopMonitor);
+
+  async function loadSelector() {
+    try {
+      const [muxR, adaptersR] = await Promise.all([
+        fetch("/multiplexes"), fetch("/adapters"),
+      ]);
+      const muxData = await muxR.json();
+      try { tunersTotal = (await adaptersR.json()).count || tunersTotal; } catch {}
+      catalog = [];
+      selEl.innerHTML = "";
+      for (const mux of muxData.multiplexes) {
+        const g = document.createElement("div");
+        g.className = "mux-group";
+        const h = document.createElement("h4");
+        h.textContent = `${(mux.frequency_hz / 1e6).toFixed(3)} MHz · ${mux.channels.length} sub`;
+        g.appendChild(h);
+        for (const c of mux.channels) {
+          catalog[c.id] = c;
+          const label = document.createElement("label");
+          const cb = document.createElement("input");
+          cb.type = "checkbox"; cb.value = c.id; cb.dataset.freq = c.frequency_hz;
+          cb.addEventListener("change", updateCount);
+          const vch = document.createElement("span");
+          vch.className = "sc-vch"; vch.textContent = c.vchannel || "—";
+          const nm = document.createElement("span");
+          nm.textContent = c.name;
+          label.append(cb, vch, nm);
+          g.appendChild(label);
+        }
+        selEl.appendChild(g);
+      }
+      selEl.dataset.loaded = "1";
+      updateCount();
+    } catch (e) {
+      selEl.innerHTML = `<div class="mon-hint over">error cargando catálogo: ${e.message}</div>`;
+    }
+  }
+
+  function checkedBoxes() {
+    return Array.from(selEl.querySelectorAll("input[type=checkbox]:checked"));
+  }
+
+  function updateCount() {
+    const checked = checkedBoxes();
+    const ids = checked.map((c) => Number(c.value));
+    const freqs = new Set(checked.map((c) => c.dataset.freq));
+    countEl.textContent = `${ids.length} / ${MAX_SUB}`;
+    const needed = freqs.size;
+    const over = ids.length > MAX_SUB || needed > tunersTotal;
+    hintEl.classList.toggle("over", over);
+    if (ids.length === 0) {
+      hintEl.textContent = "elegí subcanales (hasta 16)";
+    } else if (ids.length > MAX_SUB) {
+      hintEl.textContent = `máximo ${MAX_SUB} subcanales`;
+    } else if (needed > tunersTotal) {
+      hintEl.textContent = `necesita ${needed} tuners pero hay ${tunersTotal}`;
+    } else {
+      hintEl.textContent = `necesita ${needed} de ${tunersTotal} tuners`;
+    }
+    applyBtn.disabled = ids.length === 0 || over;
+    // Limitar a 16: deshabilitar no-marcados si ya hay 16
+    if (ids.length >= MAX_SUB) {
+      selEl.querySelectorAll("input[type=checkbox]:not(:checked)").forEach((c) => (c.disabled = true));
+    } else {
+      selEl.querySelectorAll("input[type=checkbox]").forEach((c) => (c.disabled = false));
+    }
+  }
+
+  async function applyMonitor() {
+    const ids = checkedBoxes().map((c) => Number(c.value));
+    if (!ids.length) return;
+    applyBtn.disabled = true;
+    applyBtn.textContent = "Sintonizando…";
+    try {
+      const r = await fetch("/monitor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel_ids: ids }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+      selEl.hidden = true;
+      stopBtn.hidden = false;
+      // dar ~1.5s para que lockeen antes de pedir estado
+      renderGrid(ids);
+    } catch (e) {
+      hintEl.classList.add("over");
+      hintEl.textContent = `error: ${e.message}`;
+    } finally {
+      applyBtn.disabled = false;
+      applyBtn.textContent = "Monitorear";
+    }
+  }
+
+  function renderGrid(ids) {
+    teardownRows();
+    gridEl.innerHTML = "";
+    for (const id of ids) {
+      const c = catalog[id];
+      if (!c) continue;
+      const node = subrowTpl.content.firstElementChild.cloneNode(true);
+      node.dataset.channelId = id;
+      node.querySelector(".subrow-vch").textContent = c.vchannel || "—";
+      node.querySelector(".subrow-name").textContent = c.name;
+      node.querySelector(".subrow-mux").textContent = `${(c.frequency_hz / 1e6).toFixed(1)} MHz`;
+      gridEl.appendChild(node);
+      const rec = { el: node, ws: null, hls: null, statusTimer: null, slug: null };
+      rows.set(id, rec);
+      wireVideo(id, rec);
+      // estado inicial tras pequeño delay + refresco periódico
+      setTimeout(() => loadStatus(id, rec), 1500);
+      rec.statusTimer = setInterval(() => loadStatus(id, rec), 12000);
+      openCC(id, rec);
+    }
+  }
+
+  async function loadStatus(id, rec) {
+    try {
+      const r = await fetch(`/subchannels/${id}/status?seconds=3`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      rec.slug = d.slug;
+      const onair = rec.el.querySelector(".chip-onair");
+      onair.textContent = d.on_air ? `señal ${d.signal_dbm?.toFixed(0) ?? "?"}dBm` : "sin lock";
+      onair.className = "chip chip-onair " + (d.on_air ? "on" : "off");
+      const codec = rec.el.querySelector(".chip-codec");
+      codec.textContent = d.video_codec ? `${d.video_codec} ${d.width || "?"}×${d.height || "?"}` : "—";
+      const audio = rec.el.querySelector(".chip-audio");
+      audio.textContent = d.audio_codec ? `${d.audio_codec}${d.audio_language ? " " + d.audio_language : ""}` : "—";
+      const cc = rec.el.querySelector(".chip-cc");
+      cc.textContent = d.cc_present ? "CC ✓" : "sin CC";
+      cc.className = "chip chip-cc " + (d.cc_present ? "cc-yes" : "");
+    } catch (e) {
+      const onair = rec.el.querySelector(".chip-onair");
+      onair.textContent = "estado: error"; onair.className = "chip chip-onair off";
+    }
+  }
+
+  function openCC(id, rec) {
+    const statusEl = rec.el.querySelector(".subrow-cc-status");
+    const textEl = rec.el.querySelector(".subrow-cc-text");
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    let ws;
+    try {
+      ws = new WebSocket(`${proto}://${location.host}/ws/subchannel/cc/${id}`);
+    } catch (e) {
+      statusEl.textContent = "CC: no se pudo conectar"; return;
+    }
+    rec.ws = ws;
+    statusEl.textContent = "CC: conectando…";
+    ws.addEventListener("message", (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.type === "status") {
+        statusEl.textContent = `CC: en vivo (${m.source || ""})`;
+      } else if (m.type === "error") {
+        statusEl.textContent = `CC: ${m.message}`;
+      } else if (m.type === "cc" && m.text) {
+        const line = document.createElement("div");
+        const t = document.createElement("span");
+        t.className = "cc-time"; t.textContent = m.wall_clock_short || "";
+        line.appendChild(t);
+        line.appendChild(document.createTextNode(m.text));
+        textEl.appendChild(line);
+        while (textEl.childElementCount > 30) textEl.removeChild(textEl.firstChild);
+        textEl.scrollTop = textEl.scrollHeight;
+      }
+    });
+    ws.addEventListener("close", () => {
+      if (rec.ws === ws) statusEl.textContent = "CC: desconectado";
+    });
+  }
+
+  function wireVideo(id, rec) {
+    const wrap = rec.el.querySelector(".subrow-video");
+    const video = rec.el.querySelector(".subrow-vid");
+    const btn = rec.el.querySelector(".vid-btn");
+    btn.addEventListener("click", async () => {
+      if (wrap.classList.contains("playing")) { stopVideo(id, rec); return; }
+      btn.disabled = true; btn.textContent = "…";
+      try {
+        const r = await fetch(`/subchannels/${id}/video`, { method: "POST" });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        await playHls(video, d.playlist, rec);
+        wrap.classList.add("playing");
+        btn.textContent = "■";
+      } catch (e) {
+        btn.textContent = "▶ Video";
+        alert(`No se pudo iniciar el video: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
+  async function playHls(video, src, rec) {
+    if (window.Hls && window.Hls.isSupported()) {
+      const hls = new Hls({ liveSyncDurationCount: 3, lowLatencyMode: true });
+      rec.hls = hls;
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;            // Safari nativo
+      video.addEventListener("loadedmetadata", () => video.play().catch(() => {}));
+    } else {
+      throw new Error("el navegador no soporta HLS");
+    }
+  }
+
+  function stopVideo(id, rec) {
+    const wrap = rec.el.querySelector(".subrow-video");
+    const video = rec.el.querySelector(".subrow-vid");
+    const btn = rec.el.querySelector(".vid-btn");
+    if (rec.hls) { try { rec.hls.destroy(); } catch {} rec.hls = null; }
+    try { video.pause(); video.removeAttribute("src"); video.load(); } catch {}
+    wrap.classList.remove("playing");
+    btn.textContent = "▶ Video";
+    fetch(`/subchannels/${id}/video`, { method: "DELETE" }).catch(() => {});
+  }
+
+  function teardownRows() {
+    for (const [id, rec] of rows) {
+      if (rec.statusTimer) clearInterval(rec.statusTimer);
+      if (rec.ws) { try { rec.ws.close(); } catch {} }
+      if (rec.hls) { try { rec.hls.destroy(); } catch {} }
+    }
+    rows.clear();
+  }
+
+  async function stopMonitor() {
+    stopBtn.disabled = true;
+    teardownRows();
+    gridEl.innerHTML = "";
+    try { await fetch("/monitor", { method: "DELETE" }); } catch {}
+    stopBtn.hidden = true;
+    stopBtn.disabled = false;
+  }
+
+  // Restaurar vista si ya había una selección activa (p.ej. reload de página)
+  (async function restore() {
+    try {
+      const d = await (await fetch("/monitor")).json();
+      if (d.active && d.selection && d.selection.length) {
+        // necesitamos el catálogo para los nombres
+        if (!catalog.length) {
+          const chs = await (await fetch("/channels")).json();
+          chs.channels.forEach((c) => (catalog[c.id] = c));
+        }
+        stopBtn.hidden = false;
+        renderGrid(d.selection);
+      }
+    } catch {}
+  })();
+})();
 </script>
 
 </body>

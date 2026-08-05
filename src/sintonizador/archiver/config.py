@@ -26,6 +26,12 @@ DEFAULT_MULTIPLEX_FREQS_HZ: list[int] = [
 _SLUG_SANITIZE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
+def make_slug(vchannel: str | None, channel_name: str) -> str:
+    """Slug filename-safe de un subcanal: '2.1-XHGA'. Igual que ArchiveTarget.slug."""
+    raw = f"{vchannel or '?'}-{channel_name}"
+    return _SLUG_SANITIZE.sub("_", raw)
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveTarget:
     """Una subcanal a archivar (= un program_id dentro de un multiplex)."""
@@ -41,8 +47,7 @@ class ArchiveTarget:
     @property
     def slug(self) -> str:
         """Identificador filename-safe: '2.1-XHGA'."""
-        raw = f"{self.vchannel}-{self.channel_name}"
-        return _SLUG_SANITIZE.sub("_", raw)
+        return make_slug(self.vchannel, self.channel_name)
 
 
 def build_targets(

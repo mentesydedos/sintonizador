@@ -80,3 +80,36 @@ class TuneRequest(BaseModel):
     """Body de POST /tuners/{n}/tune."""
 
     channel_id: int = Field(description="ID de canal del catálogo (índice en GET /channels)")
+
+
+class SubchannelStatusView(BaseModel):
+    """Estado de un subcanal: señal heredada del mux + codec/idioma/CC del programa."""
+
+    slug: str
+    channel_id: int
+    name: str
+    vchannel: str | None = None
+    frequency_hz: int
+    service_id: int | None = None
+    adapter: int | None = None  # tuner que lleva su mux ahora (None si no sintonizado)
+
+    on_air: bool = False  # has_lock en el mux
+    has_signal: bool = False
+    signal_dbm: float | None = None
+    cnr_db: float | None = None
+
+    video_codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+    audio_codec: str | None = None
+    audio_language: str | None = None
+    cc_present: bool = False
+
+    bytes_captured: int = 0
+    error: str | None = None
+
+
+class MonitorRequest(BaseModel):
+    """Body de POST /monitor: lista de channel_ids a monitorear."""
+
+    channel_ids: list[int] = Field(description="IDs de canal del catálogo a monitorear (hasta 16)")

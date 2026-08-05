@@ -1,11 +1,11 @@
 """Una `ArchivePipeline` por subcanal: ccextractor + archivos rotativos.
 
-NO maneja demux directamente — recibe bytes vía `feed_ts()` del `AdapterReader`
-del adapter. Esto evita la duplicación de paquetes del kernel cuando hay N
-subcanales en el mismo adapter.
+NO maneja demux directamente — recibe bytes vía `feed_ts()` del `MuxReader`
+compartido del adapter (es un `TsConsumer`). Esto evita la duplicación de
+paquetes del kernel cuando hay N subcanales en el mismo adapter.
 
 Pipeline:
-    AdapterReader (demux compartido)
+    MuxReader (demux compartido, un tap por adapter)
        ↓ feed_ts(bytes)
     stdin de ccextractor -in=ts -stdin -pn N -1 -out=srt -stdout
        ↓ stdout
@@ -93,6 +93,11 @@ class ArchivePipeline:
     @property
     def is_active(self) -> bool:
         return self._task is not None and not self._task.done()
+
+    @property
+    def key(self) -> str:
+        """Identificador como `TsConsumer` dentro del adapter."""
+        return f"archive:{self.target.slug}"
 
     # --- pubsub (WS /ws/archive/{slug}) ---
 

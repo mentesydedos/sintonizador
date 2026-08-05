@@ -1,0 +1,38 @@
+﻿RF,Frecuencia (MHz),Canal virtual,Callsign,Service ID,Nombre comercial,Códec video,Resolución,Exploración,Audio,Canales audio,2º audio (SAP),Idioma audio,Closed Captions (PMT),EPG
+9,189,10.1,XHQMGU,1,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,sí (sin eventos)
+9,189,10.2,XHQMGU2,2,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,sí (sin eventos)
+9,189,10.3,XHQMGU3,3,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,,,sí (sin eventos)
+20,509,14.1,XHSPRGA,1,Canal 14,MPEG-2,1920x1080,progresivo,AC-3,2.0,no,esp,spa/708(digital),no
+20,509,22.1,XHSPRGA,3,Canal 22,MPEG-2,720x480,entrelazado,AC-3,2.0,no,esp,,no
+20,509,20.1,XHSPRGA,4,TV UNAM,MPEG-2,720x480,entrelazado,AC-3,2.0,no,esp,"esp/608(line21), esp/708(digital)",no
+20,509,14.2,XHSPRGA,7,TV MIGRANTE,H.264,720x480,entrelazado,AC-3,2.0,no,esp,"esp/608(line21), esp/708(digital)",no
+22,521,5.1,XHGUE,1,Canal Cinco-XHGUE-TDT,MPEG-2,1920x1080,entrelazado,AC-3,2.0,sí,"spa, eng",spa/708(digital),no
+23,527,11.1,XHPBGD,1,Canal 11.1,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,eng,eng/708(digital),no
+23,527,11.2,XHPBGD,2,Canal 11.2,MPEG-2,704x480,entrelazado,AC-3,2.0,no,eng,,no
+24,533,2.1,XHGA,1,Las Estrellas-XHGA-TDT,MPEG-2,1920x1080,entrelazado,AC-3,5.1,sí,"spa, eng",spa/708(digital),no
+24,533,2.2,XHGA,2,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,spa,,no
+25,539,17.4,XHGJG,1,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,eng,,no
+25,539,17.1,XHGJG,2,JALISCOTV HD,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,eng,,no
+25,539,17.3,XHGJG,3,JaliscoTV Parlamento,MPEG-2,720x480,entrelazado,AC-3,2.0,no,eng,,no
+25,539,17.2,XHGJG,4,JaliscoTV,MPEG-2,720x480,entrelazado,AC-3,2.0,no,eng,,no
+26,545,9.1,XEWO,1,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,sí,"spa, eng",,no
+26,545,9.2,XEWO,2,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,spa,,no
+27,551,44.1,XHUDG,1,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,no
+27,551,44.2,XHUDG,2,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,,,no
+28,557,3.1,XHCTGD,1,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,no
+28,557,3.3,XHCTGD,3,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,,,no
+28,557,3.4,XHCTGD,4,,MPEG-2,720x480,entrelazado,AC-3,2.0,no,,,no
+29,563,4.1,XHG,1,XHG-TDT,MPEG-2,1920x1080,entrelazado,AC-3,2.0,sí,"spa, eng",,no
+29,563,4.2,XHG,2,,MPEG-2,720x480,entrelazado,AC-3,2.0,sí,"spa, eng",,no
+31,575,7.1,XHSFJ,2,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,spa,spa/708(digital),no
+31,575,7.2,XHSFJ,9,,MPEG-2,704x480,entrelazado,AC-3,2.0,no,spa,"spa/608(line21), fra/608(line21), spa/708(digital)",no
+33,587,1.1,XHJAL,1,,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,no
+33,587,—,,2,,,,,,,,,,no
+33,587,1.2,XHJAL,3,,MPEG-2,704x480,entrelazado,AC-3,2.0,no,,,no
+34,593,6.1,XHTDJA1,1,MULTIMEDIOS,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,ENG,,no
+34,593,6.2,XHTDJA2,2,MILENIO,H.264,720x480,entrelazado,AC-3,2.0,no,ENG,,no
+34,593,6.3,XHTDJA3,3,TELERITMO,H.264,720x480,entrelazado,AC-3,2.0,no,ENG,,no
+34,593,6.4,XHTDJA4,4,52MX,H.264,720x480,entrelazado,AC-3,2.0,no,ENG,,no
+35,599,13.1,XEDK,1,XEDK-TDT,MPEG-2,1920x1080,entrelazado,AC-3,2.0,no,,,no
+35,599,13.2,XEDK,2,XEDK,H.264,720x480,entrelazado,AC-3,2.0,no,,,no
+35,599,13.3,XEDK,3,XEDK,H.264,720x480,entrelazado,AC-3,2.0,no,,,no

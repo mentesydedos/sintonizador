@@ -25,6 +25,10 @@ log = logging.getLogger(__name__)
 # real — el demod no actualizó el registro. Confirmado empíricamente 2026-05-13.
 LGDT3306A_CNR_SENTINEL_MDB = 1290  # 1.29 dB en milli-dB
 
+# Cada cuánto reintentar abrir un frontend que no abre (adapter inexistente o
+# tomado por otra app). Evita spam de logs cada 0.5s en adapters 4..7 vacíos.
+_OPEN_RETRY_S = 5.0
+
 
 @dataclass(slots=True)
 class TunerSnapshot:
@@ -62,6 +66,9 @@ class _AdapterRunner:
     frontend: Frontend
     last_snapshot: TunerSnapshot | None = None
     consecutive_errors: int = 0
+    # Backoff de reapertura: para adapters inexistentes (p.ej. 4..7 antes de
+    # instalar la 2da tarjeta) no reintentar/loggear cada 0.5s.
+    last_open_attempt: float = 0.0
 
 
 @dataclass
@@ -193,8 +200,19 @@ class MonitorPoller:
     def _poll_one(self, runner: _AdapterRunner) -> TunerSnapshot:
         snap = TunerSnapshot(adapter=runner.adapter, timestamp=time.time(), available=False)
         if not runner.frontend.is_open:
-            # Intentamos reabrir cada vez — si otra app lo tenía exclusivo y la cerró,
-            # podemos volver a leer.
+            # Reapertura con backoff: si otra app lo tenía exclusivo y la cerró,
+            # podemos volver a leer; pero si el adapter no existe (4..7 sin la 2da
+            # tarjeta) no reintentamos cada tick para no llenar el log.
+            now = time.monotonic()
+            if now - runner.last_open_attempt < _OPEN_RETRY_S:
+                snap.error = (
+                    runner.last_snapshot.error
+                    if runner.last_snapshot and runner.last_snapshot.error
+                    else "frontend no disponible"
+                )
+                runner.last_snapshot = snap
+                return snap
+            runner.last_open_attempt = now
             try:
                 runner.frontend.open()
             except FrontendError as e:

@@ -1,5 +1,6 @@
 """Wrapper Python sobre DVB API v5 (ioctls + ctypes)."""
 
+from sintonizador.dvb.adapters import detect_adapters
 from sintonizador.dvb.frontend import Frontend, FrontendStats, LockState, StatSample, TuneInfo
 from sintonizador.dvb.constants import (
     DTV_STAT_SIGNAL_STRENGTH,
@@ -12,6 +13,7 @@ from sintonizador.dvb.constants import (
 )
 
 __all__ = [
+    "detect_adapters",
     "Frontend",
     "FrontendStats",
     "LockState",

@@ -18,11 +18,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sintonizador.archiver.adapter_reader import AdapterReader
 from sintonizador.archiver.config import (
     DEFAULT_MULTIPLEX_FREQS_HZ,
     ArchiveTarget,
@@ -33,6 +31,7 @@ from sintonizador.archiver.pipeline import ArchivePipeline
 if TYPE_CHECKING:
     from sintonizador.channels import Channel
     from sintonizador.monitor import MonitorPoller
+    from sintonizador.mux import MuxReaderRegistry
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +42,12 @@ class Archiver:
         poller: "MonitorPoller",
         channels: list["Channel"],
         archive_root: Path,
+        registry: "MuxReaderRegistry",
         multiplex_freqs_hz: list[int] | None = None,
         rotation_minutes: int = 30,
     ) -> None:
         self.poller = poller
+        self.registry = registry
         self.archive_root = Path(archive_root)
         self.rotation_minutes = rotation_minutes
         self.targets: list[ArchiveTarget] = build_targets(
@@ -54,8 +55,6 @@ class Archiver:
             multiplex_freqs_hz=multiplex_freqs_hz or list(DEFAULT_MULTIPLEX_FREQS_HZ),
         )
         self.pipelines: list[ArchivePipeline] = []
-        # readers[adapter] = AdapterReader que tiene las pipelines de ese adapter
-        self.readers: dict[int, AdapterReader] = {}
         self._running = False
         self._started_at: float | None = None
 
@@ -96,43 +95,39 @@ class Archiver:
         # Dar 2s para que los frontends lockean antes de meter ccextractor a leer
         await asyncio.sleep(2.0)
 
-        # Agrupar targets por adapter → 1 AdapterReader por adapter,
-        # con N pipelines (una por subcanal) cada uno
-        by_adapter: dict[int, list[ArchiveTarget]] = defaultdict(list)
-        for t in self.targets:
-            by_adapter[t.adapter].append(t)
-
+        # Una ArchivePipeline (consumidor) por subcanal, colgada del MuxReader
+        # compartido del adapter (un solo tap por adapter, garantizado por el
+        # registry). El registry arranca cada pipeline y el read-loop.
         self.pipelines = []
-        self.readers = {}
-        for adapter, targets in by_adapter.items():
-            pipelines = [
-                ArchivePipeline(
-                    target=t,
-                    archive_root=self.archive_root,
-                    rotation_minutes=self.rotation_minutes,
-                )
-                for t in targets
-            ]
-            self.pipelines.extend(pipelines)
-            self.readers[adapter] = AdapterReader(adapter=adapter, pipelines=pipelines)
+        for t in self.targets:
+            p = ArchivePipeline(
+                target=t,
+                archive_root=self.archive_root,
+                rotation_minutes=self.rotation_minutes,
+            )
+            self.pipelines.append(p)
+            await self.registry.attach(t.adapter, p)
 
-        # Arrancar todos los readers (cada uno arranca sus pipelines internamente)
-        await asyncio.gather(*(r.start() for r in self.readers.values()))
         self._running = True
         self._started_at = time.time()
         log.info("archiver: %d adapters · %d pipelines · archive_root=%s",
-                 len(self.readers), len(self.pipelines), self.archive_root)
+                 len(seen), len(self.pipelines), self.archive_root)
 
     async def stop(self) -> None:
         if not self._running:
             return
-        log.info("archiver: parando %d readers…", len(self.readers))
+        log.info("archiver: parando %d pipelines…", len(self.pipelines))
         # Liberar reserva primero — la UI puede usar los tuners enseguida.
         for adapter in {t.adapter for t in self.targets}:
             self.poller.release(adapter)
-        # Stop readers en paralelo (cada uno para sus pipelines)
-        await asyncio.gather(*(r.stop() for r in self.readers.values()), return_exceptions=True)
-        self.readers = {}
+        # Detach de cada pipeline del registry (cierra el tap del adapter cuando
+        # se va el último consumidor — salvo que el monitoreo tenga consumidores
+        # propios ahí, en cuyo caso el reader sigue vivo).
+        for p in self.pipelines:
+            try:
+                await self.registry.detach(p.target.adapter, p.key)
+            except Exception:
+                log.exception("archiver: detach %s falló", p.key)
         self.pipelines = []
         self._running = False
         log.info("archiver: stopped")
@@ -147,9 +142,11 @@ class Archiver:
             "total_targets": len(self.targets),
             "reserved_adapters": sorted(self.reserved_adapters),
             # Bytes leídos por adapter — útil para detectar si un adapter
-            # pierde su feed RF o el demux fd colapsa
+            # pierde su feed RF o el demux fd colapsa. Vienen del MuxReader
+            # compartido (puede incluir bytes consumidos por el monitoreo).
             "adapter_bytes_read": {
-                str(a): r.bytes_read for a, r in self.readers.items()
+                str(a): (r.bytes_read if (r := self.registry.get(a)) else 0)
+                for a in sorted({t.adapter for t in self.targets})
             },
             "pipelines": [
                 {
